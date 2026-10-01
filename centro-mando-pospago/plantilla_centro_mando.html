@@ -568,13 +568,15 @@ const RK=[
  {k:'crec',l:'Comisión recuperable',hi:0,v:o=>o.dn?cRec(o):null,vol:o=>o.dn,mn:T=>Math.max(5,T.dn*.01),f:money,sub:o=>`${fmt(sm(o.cr))} facturas vencidas · en riesgo ${money(o.risk)}`},
  {k:'mor',l:'Morosidad',hi:0,v:o=>fr(o.due-o.dp,o.due),vol:o=>o.due,mn:T=>Math.max(15,T.due*.01),f:P,sub:o=>`${fmt(o.due-o.dp)} sin pago de ${fmt(o.due)} · ${o.atN?fmt(o.atS/o.atN):'—'} días promedio`},
  {k:'crit',l:'DN críticos',hi:0,v:o=>o.dn?o.es[2]:null,vol:o=>o.dn,mn:T=>Math.max(5,T.dn*.01),f:fmt,sub:o=>`${P(fr(o.es[2],evalN(o)))} de ${fmt(evalN(o))} evaluados`}];
-function rankData(){const dim=DIMS.find(d=>d.k===DIRST.dim),rows=[...agg(dim.ix).values()].map(o=>(o.name=dim.n[o.k],o)),T0=tot(rows),ind=RK.find(r=>r.k===DIRST.ind);
- const ok=rows.filter(o=>{const v=ind.v(o);return v!=null&&ind.vol(o)>=ind.mn(T0)}).sort((a,b)=>ind.hi?ind.v(b)-ind.v(a):ind.v(a)-ind.v(b));
- return {dim,ind,ok,T0,rows}}
-function rkRow(o,j,ind,good){return `<div class="rk-row"><span class="rk-n ${good?'g':'r'}">${j+1}</span><div class="rk-m"><b title="${o.name}">${o.name}</b><small>${ind.sub(o)}</small></div><span class="rk-v ${good?'g':'r'}">${ind.f(ind.v(o))}</span></div>`}
-function dirRank(){const {dim,ind,ok}=rankData(),k=Math.min(8,Math.max(1,Math.floor(ok.length/2))),best=ok.slice(0,k),worst=ok.slice(-k).reverse();
- $('dir-rank').innerHTML=`<div class="grid g2"><div class="card"><div class="ring-title" style="margin-bottom:8px"><span class="status-pill g">Mejores</span> ${ind.l} por ${dim.l.toLowerCase()}</div>${best.length?best.map((o,j)=>rkRow(o,j,ind,true)).join(''):'<p class="note">Sin grupos con volumen suficiente.</p>'}</div>
- <div class="card"><div class="ring-title" style="margin-bottom:8px"><span class="status-pill rd">A atender</span> ${ind.l} por ${dim.l.toLowerCase()}</div>${worst.length?worst.map((o,j)=>rkRow(o,j,ind,false)).join(''):'<p class="note">Sin grupos con volumen suficiente.</p>'}</div></div><p class="note">${ind.hi?'Más alto es mejor.':'Más bajo es mejor.'} Solo entran grupos con volumen suficiente para no distorsionar el ranking (${ok.length} de ${fmt(rankData().rows.length)}).</p>`}
+// Entran TODOS los grupos del filtro con dato (decisión de Elías); los de poco volumen se marcan, no se excluyen.
+function rankData(){const dim=DIMS.find(d=>d.k===DIRST.dim),rows=[...agg(dim.ix).values()].map(o=>(o.name=dim.n[o.k],o)),T0=tot(rows),ind=RK.find(r=>r.k===DIRST.ind),mn=ind.mn(T0);
+ const ok=rows.filter(o=>ind.v(o)!=null&&ind.vol(o)>0).sort((a,b)=>(ind.hi?ind.v(b)-ind.v(a):ind.v(a)-ind.v(b))||ind.vol(b)-ind.vol(a));
+ ok.forEach(o=>o.low=ind.vol(o)<mn);const half=Math.ceil(ok.length/2);
+ return {dim,ind,ok,T0,rows,best:ok.slice(0,half),worst:ok.slice(half).reverse()}}
+function rkRow(o,j,ind,good){return `<div class="rk-row"><span class="rk-n ${good?'g':'r'}">${j+1}</span><div class="rk-m"><b title="${o.name}">${o.name}</b><small>${ind.sub(o)}${o.low?' · <i>poco volumen</i>':''}</small></div><span class="rk-v ${good?'g':'r'}">${ind.f(ind.v(o))}</span></div>`}
+function dirRank(){const {dim,ind,ok,rows,best,worst}=rankData(),lst=(a,g)=>a.length?`<div style="max-height:620px;overflow:auto">${a.map((o,j)=>rkRow(o,j,ind,g)).join('')}</div>`:'<p class="note">Sin grupos en esta mitad.</p>';
+ $('dir-rank').innerHTML=`<div class="grid g2"><div class="card"><div class="ring-title" style="margin-bottom:8px"><span class="status-pill g">Mejores</span> ${ind.l} por ${dim.l.toLowerCase()} · ${fmt(best.length)}</div>${lst(best,true)}</div>
+ <div class="card"><div class="ring-title" style="margin-bottom:8px"><span class="status-pill rd">A atender</span> ${ind.l} por ${dim.l.toLowerCase()} · ${fmt(worst.length)} (el #1 es el más afectado)</div>${lst(worst,false)}</div></div><p class="note">${ind.hi?'Más alto es mejor.':'Más bajo es mejor.'} Se muestran todos: ${fmt(ok.length)} con dato de ${fmt(rows.length)} en el filtro, la mitad mejor a la izquierda y la otra mitad a la derecha. "Poco volumen" = muy pocos casos; su porcentaje puede moverse mucho.</p>`}
 function vDir(){const b=B,ct=b.ct,ac=b.alc==null?null:b.alc*100;
  let d1=0,d2=0,d3=0,d30=0;U.forEach(i=>{const s=DNS.get(i);if(!s||!s[2])return;if(s[2]===1)d1++;else if(s[2]===2)d2++;else d3++;if(s[3]>30)d30++});
  const bjA=U.filter(i=>CANC(D[i][C.lin])&&D[i][C.fven]>0).length;
@@ -589,7 +591,8 @@ function vDir(){const b=B,ct=b.ct,ac=b.alc==null?null:b.alc*100;
  <div class="card"><div class="ring-title" style="margin-bottom:8px">Supervisores con mayor pérdida potencial</div>${sup.length?sup.map((o,j)=>`<div class="rk-row"><span class="rk-n r">${j+1}</span><div class="rk-m"><b title="${o.name}">${o.name}</b><small>${fmt(o.dn)} altas · ${fmt(sm(o.cr))} facturas vencidas · ${fmt(o.es[2])} DN críticos</small></div><span class="rk-v r">${money(cRec(o))}<small>en riesgo ${money(o.risk)}</small></span></div>`).join(''):'<p class="note">Sin comisión recuperable en esta selección.</p>'}</div>`+
  sect('¿Dónde actuar primero?')+`<div class="tools"><label>Indicador <select id="rk_ind">${RK.map(r=>`<option value="${r.k}"${r.k===DIRST.ind?' selected':''}>${r.l}</option>`).join('')}</select></label><label>Ver por <select id="rk_dim">${DIMS.map(d=>`<option value="${d.k}"${d.k===DIRST.dim?' selected':''}>${d.l}</option>`).join('')}</select></label><button class="btn" id="rk_csv">Exportar CSV</button></div><div id="dir-rank"></div>`;
  $('rk_ind').onchange=e=>{DIRST.ind=e.target.value;dirRank()};$('rk_dim').onchange=e=>{DIRST.dim=e.target.value;dirRank()};
- $('rk_csv').onclick=()=>{const {dim,ind,ok}=rankData();exportCsv('centro-mando-ranking-'+ind.k,[dim.l,ind.l,'Detalle'],ok.map(o=>[o.name,ind.k==='cgen'||ind.k==='crec'||ind.k==='crit'?Math.round(ind.v(o)):(100*ind.v(o)).toFixed(1),ind.sub(o)]))};
+ $('rk_csv').onclick=()=>{const {dim,ind,best,worst}=rankData(),val=o=>ind.k==='cgen'||ind.k==='crec'||ind.k==='crit'?Math.round(ind.v(o)):(100*ind.v(o)).toFixed(1);
+  exportCsv('centro-mando-ranking-'+ind.k,['Grupo','#',dim.l,ind.l,'Detalle','Poco volumen'],[...best.map((o,j)=>['Mejores',j+1,o.name,val(o),ind.sub(o),o.low?'sí':'']),...worst.map((o,j)=>['A atender',j+1,o.name,val(o),ind.sub(o),o.low?'sí':''])])};
  dirRank()}
 
 /* ================= DETALLE POR DN ================= */
