@@ -1,0 +1,4 @@
+# NUNCA subir: contiene la clave y los datos en claro
+config.json
+salida/
+__pycache__/

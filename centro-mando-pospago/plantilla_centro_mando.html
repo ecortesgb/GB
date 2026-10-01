@@ -1,0 +1,652 @@
+<title>Centro de Mando Pospago</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700;800&display=swap">
+<style>
+/* Layout: mismo esqueleto que Avance GB (barra lateral oscura con GBsaurio, barra de filtros fija, vistas por sección), sobre fondo gris. */
+:root{color-scheme:light;
+ --orange:#EE6602;--orange-dark:#C74F00;--orange-soft:#FCE3D0;--dark:#17191D;--dark2:#20232B;--purple:#5C2483;--blue:#00509C;--green:#1E7A1E;--gray:#6B7280;
+ --red:#DC2626;--amber:#D97706;--orange-n:#F2790A;--bg:#E4E7EB;--card:#FFFFFF;--line:#D9DDE2;--soft:#F4F5F7;--text:#1A1A1A;--text-muted:#5F646C;--text-soft:#8a8f97;
+ --silver:#B9BFC8;--silver-d:#8B939E;--silver-l:#E7EAEE;--graph:#3B4048;--radius:16px;--radius-sm:10px;--shadow:0 2px 10px rgba(20,20,20,.07);--shadow-lg:0 10px 30px rgba(20,20,20,.14);--topbar-h:60px}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{font-family:'Poppins',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased;font-size:14px}
+h1,h2,h3{font-weight:800;margin:0}
+::-webkit-scrollbar{width:8px;height:8px}::-webkit-scrollbar-thumb{background:#bfc4ca;border-radius:8px}
+#app{display:flex;min-height:100vh;align-items:flex-start}
+#sidebar{width:250px;flex:0 0 250px;background:var(--dark);color:#fff;display:flex;flex-direction:column;position:sticky;top:0;height:100vh;z-index:40}
+.sb-brand{display:flex;align-items:center;gap:10px;padding:20px 18px 14px}
+.sb-brand img{width:38px;height:38px;object-fit:contain}
+.sb-brand .name{font-weight:800;font-size:15px;line-height:1.15}
+.sb-brand .sub{font-size:10.5px;color:#9aa;letter-spacing:.06em;text-transform:uppercase;opacity:.75}
+#sb-nav{flex:1;padding:6px 10px;overflow-y:auto}
+.nav-item{display:flex;align-items:center;gap:11px;padding:11px 12px;margin:3px 0;border-radius:11px;color:#c9ccd1;cursor:pointer;font-size:13.5px;font-weight:600;transition:background .18s,color .18s;user-select:none}
+.nav-item .ic{width:20px;text-align:center;font-size:15px}
+.nav-item:hover{background:#242730;color:#fff}
+.nav-item.active{background:var(--orange);color:#fff}
+.sb-mascot-wrap{margin:54px 12px 16px;padding:52px 12px 12px;border-radius:16px;background:linear-gradient(160deg,var(--orange) 0%,var(--orange-dark) 100%);position:relative;text-align:center}
+.sb-mascot-figure{width:110px;height:auto;position:absolute;top:-46px;left:50%;transform:translateX(-50%);filter:drop-shadow(0 8px 12px rgba(0,0,0,.4))}
+.sb-mascot-card{background:#1a1a1a;border-radius:12px;padding:12px 13px 14px;text-align:left;position:relative}
+.sm-label{font-size:10px;opacity:.65;text-transform:uppercase;letter-spacing:.06em;font-weight:800;margin-bottom:3px}
+.sm-headline{font-size:15px;font-weight:800;margin-bottom:4px;line-height:1.2}
+.sm-sub{font-size:11px;color:#dfe1e5;line-height:1.4;display:block}
+.sm-icon{position:absolute;top:10px;right:11px;font-size:15px}
+#topbar{display:none;position:sticky;top:0;z-index:50;background:var(--dark);color:#fff;align-items:center;justify-content:space-between;padding:12px 14px;height:var(--topbar-h)}
+#topbar .tb-brand{display:flex;align-items:center;gap:8px;font-weight:800;font-size:14px}
+#topbar .tb-brand img{width:26px;height:26px}
+#topbar button{background:#242730;border:none;color:#fff;width:36px;height:36px;border-radius:10px;font-size:16px;cursor:pointer}
+#topbar button[aria-expanded="true"]{background:var(--orange)}
+#bottomnav{display:none;position:fixed;bottom:0;left:0;right:0;z-index:50;background:var(--dark);box-shadow:0 -4px 16px rgba(0,0,0,.25)}
+#bn-list{display:flex;width:100%;overflow-x:auto}
+.bn-item{flex:1 0 auto;min-width:64px;max-width:82px;display:flex;flex-direction:column;align-items:center;gap:2px;padding:9px 4px;color:#9aa;font-size:10px;font-weight:700;cursor:pointer;text-align:center;line-height:1.15}
+.bn-item .ic{font-size:15px}.bn-item.active{color:var(--orange)}
+#bottomnav.nav-collapsed #bn-list{display:none}
+#main{flex:1;min-width:0;display:flex;flex-direction:column}
+#filterbar{background:var(--card);border-bottom:1px solid var(--line);padding:8px 22px;position:sticky;top:0;z-index:30;box-shadow:var(--shadow)}
+.fb-top{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:6px}
+.fb-title{font-size:16px;font-weight:800}.fb-title small{font-weight:600;color:var(--text-soft);font-size:11px;margin-left:8px}
+.fb-row-main{display:flex;align-items:flex-start;gap:14px}
+.fb-filters-col{flex:1 1 auto;min-width:0}
+.fb-group-fields{display:flex;flex-wrap:wrap;align-items:flex-start}
+.fb-field{display:flex;flex-direction:column;gap:2px;min-width:110px;max-width:170px;padding:0 8px;border-left:1px solid var(--line)}
+.fb-field:first-child{border-left:none;padding-left:0}
+.fb-field label{font-size:10px;font-weight:800;color:var(--text-soft);text-transform:uppercase;letter-spacing:.04em}
+.fb-field select{border:1.5px solid var(--line);border-radius:7px;padding:4px 6px;font-size:11px;font-family:inherit;background:#fff;color:var(--text);font-weight:600;width:100%;text-overflow:ellipsis}
+.fb-field select:focus{outline:none;border-color:var(--orange)}
+.fb-headline-slot{flex:0 0 auto;width:270px;max-width:100%}
+.headline-card{display:flex;align-items:flex-start;gap:12px;background:var(--card);border:1px solid var(--line);border-radius:var(--radius-sm);padding:9px 14px 9px 10px;box-shadow:var(--shadow)}
+.hc-figure{width:56px;height:auto;flex:0 0 auto;margin-top:2px}
+.hc-body{display:flex;flex-direction:column;gap:3px;min-width:0}
+.hc-label{font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--text-soft)}
+.hc-row{display:flex;align-items:center;gap:8px}.hc-tier{font-size:19px;font-weight:800;line-height:1}
+.hc-trend{width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800}
+.hc-delta{font-size:11.5px;font-weight:700;line-height:1.25}
+.fb-chips{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:8px}
+.fb-chips .lbl{font-size:10px;font-weight:800;color:var(--text-soft);text-transform:uppercase;letter-spacing:.04em}
+.chip{border:1.5px solid var(--line);background:#fff;border-radius:20px;padding:3px 11px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;color:var(--text-muted)}
+.chip[aria-pressed="true"]{background:var(--orange);border-color:var(--orange);color:#fff}
+.btn{border:1.5px solid var(--line);background:#fff;border-radius:9px;padding:7px 13px;font-size:12px;font-weight:700;cursor:pointer;color:var(--text);font-family:inherit}
+.btn.primary{background:var(--orange);border-color:var(--orange);color:#fff}
+.btn:hover{border-color:var(--orange)}
+#fb-toggle{display:none}
+:focus-visible{outline:2px solid var(--orange);outline-offset:2px}
+#content{flex:1;padding:22px;position:relative;min-width:0}
+.view{display:none}.view.active{display:block;animation:viewIn .28s ease both}
+@keyframes viewIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.page-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:12px;flex-wrap:wrap}
+.page-head h2{font-size:20px}.page-head .sub{font-size:12.5px;color:var(--text-muted);font-weight:600;margin-top:2px;max-width:70ch}
+.sec-mascot{display:flex;align-items:center;gap:8px;font-size:11.5px;font-weight:700;color:var(--text-muted)}
+.sec-mascot img{width:30px;height:auto}
+.grid{display:grid;gap:14px}.g4{grid-template-columns:repeat(4,1fr)}.g3{grid-template-columns:repeat(3,1fr)}.g2{grid-template-columns:repeat(2,1fr)}
+.card{background:var(--card);border-radius:var(--radius);padding:16px 18px;box-shadow:var(--shadow);border:1px solid var(--line);min-width:0}
+.grid.stagger>*{animation:cardIn .38s cubic-bezier(.22,.61,.36,1) both}
+.grid.stagger>*:nth-child(2){animation-delay:.05s}.grid.stagger>*:nth-child(3){animation-delay:.1s}.grid.stagger>*:nth-child(4){animation-delay:.15s}
+@keyframes cardIn{from{opacity:0;transform:translateY(10px) scale(.985)}to{opacity:1;transform:none}}
+.ring-card{display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center}
+.ring-title{font-size:11.5px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.03em;display:flex;align-items:center;gap:6px}
+.ring-title img{width:26px;height:auto}
+.ring-wrap{position:relative;width:134px;height:134px}
+.ring-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.ring-center .n{font-size:24px;font-weight:800}.ring-center .cap{font-size:10px;font-weight:700;color:var(--text-soft);text-transform:uppercase}
+.re-row{font-size:10.5px;font-weight:700;color:var(--text-muted)}.re-row b{color:var(--text);font-weight:800}
+.etiqueta-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin:14px 0}
+.etiqueta{background:var(--card);border:1px solid var(--line);border-radius:var(--radius-sm);padding:10px 12px;text-align:center}
+.et-lbl{font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.03em}
+.et-val{font-size:19px;font-weight:800;line-height:1.2}.et-sub{font-size:10.5px;color:var(--text-muted);font-weight:600}
+.section-title{display:flex;align-items:center;gap:10px;margin:22px 0 12px}
+.section-title .bar{width:5px;height:20px;background:var(--orange);border-radius:3px}.section-title h3{font-size:14.5px}
+.note{font-size:12px;color:var(--text-muted);font-weight:600;margin:0 0 10px;max-width:90ch}
+.tbl-wrap{overflow-x:auto;border-radius:var(--radius);border:1px solid var(--line);background:#fff}
+table.dt{width:100%;border-collapse:collapse;font-size:12px;white-space:nowrap;font-variant-numeric:tabular-nums}
+table.dt thead th{background:var(--soft);color:var(--text-muted);font-size:10px;text-transform:uppercase;letter-spacing:.02em;text-align:center;padding:7px 8px;border-bottom:1px solid var(--line);position:sticky;top:0;line-height:1.2}
+table.dt thead th.s{cursor:pointer}table.dt thead th.s:hover{opacity:.85}
+table.dt tbody td{padding:7px 8px;border-bottom:1px solid #eef0f2;text-align:center}
+table.dt th:first-child,table.dt td:first-child{text-align:left;position:sticky;left:0;z-index:2;max-width:230px;overflow:hidden;text-overflow:ellipsis}
+table.dt thead th:first-child{background:var(--orange);color:#fff;z-index:3}
+table.dt tbody td:first-child{background:#fff;font-weight:600}
+table.dt tbody tr:hover td{background:#fdf8f4}
+table.dt td.t{text-align:left}
+table.dt thead th.th-total{background:var(--purple);color:#fff}.th-temm{background:var(--blue)!important;color:#fff!important}.th-porta{background:var(--green)!important;color:#fff!important}.th-pospago{background:var(--gray)!important;color:#fff!important}.th-checks{background:#F2C94C!important;color:#1A1A1A!important}.th-piso{background:#0B3D6B!important;color:#fff!important}.th-visitas{background:var(--orange)!important;color:#fff!important}.th-red{background:var(--red)!important;color:#fff!important}
+.cell-red{color:var(--red);font-weight:800}.cell-orange{color:var(--orange-n);font-weight:800}.cell-amber{color:var(--amber);font-weight:800}.cell-green{color:var(--green);font-weight:800}
+.cell-flag{background:#fbe6e6;color:var(--red);font-weight:800}
+.pct-ico{display:inline-flex;align-items:center;justify-content:center;width:13px;height:13px;border-radius:50%;font-size:9px;margin-right:4px;color:#fff;vertical-align:middle}
+.pct-ico.ok{background:var(--green)}.pct-ico.bad{background:var(--red)}
+.trend-ico{margin-right:3px;font-size:10px}.up{color:var(--green)}.dn{color:var(--red)}
+.status-pill{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:20px;font-size:10.5px;font-weight:800;white-space:nowrap}
+.status-pill.rd{background:#fbe6e6;color:var(--red)}.status-pill.n{background:#fdead2;color:var(--orange-n)}.status-pill.a{background:#fdf1de;color:var(--amber)}.status-pill.g{background:#e6f4e6;color:var(--green)}
+.leg{display:flex;flex-wrap:wrap;gap:14px;font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:6px}
+.leg b{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+svg text{font-family:'Poppins',system-ui,sans-serif;font-size:10.5px;fill:#5F646C;font-weight:600}
+svg .g{stroke:#e3e6ea;stroke-width:1}
+.funnel{display:flex;flex-direction:column;gap:7px}
+.frow{display:grid;grid-template-columns:170px 1fr 120px;gap:8px;align-items:center;font-size:12px;font-weight:600}
+.fb{height:18px;background:#e6e9ed;border-radius:4px;overflow:hidden}.fb i{display:block;height:100%}
+.frow span:last-child{text-align:right;font-weight:800}
+.tools{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px;font-size:12px;font-weight:600;color:var(--text-muted)}
+.tools select{border:1.5px solid var(--line);border-radius:9px;padding:6px 9px;font:inherit;font-weight:600;background:#fff}
+.narr{background:linear-gradient(135deg,var(--dark) 0%,var(--dark2) 100%);border-radius:var(--radius);padding:16px 20px;color:#fff;box-shadow:var(--shadow-lg);margin-bottom:14px}
+.narr h3{font-size:13px;margin-bottom:8px}.narr ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:7px}.narr li{font-size:12.5px;font-weight:600;line-height:1.5;color:#e9e9ea}
+#toast{position:fixed;left:50%;bottom:calc(84px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--dark);color:#fff;padding:9px 16px;border-radius:9px;font-size:12.5px;font-weight:700;z-index:80}
+#ta{position:fixed;inset:10% 5%;z-index:90;background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:8px;box-shadow:var(--shadow-lg)}
+#ta textarea{flex:1;font-family:ui-monospace,Consolas,monospace;font-size:11px;border:1px solid var(--line);border-radius:8px}
+[hidden]{display:none!important}
+.foot{font-size:11px;color:var(--text-muted);font-weight:600;margin-top:24px}
+@media (max-width:1100px){.g4{grid-template-columns:repeat(2,1fr)}.g3{grid-template-columns:repeat(2,1fr)}.g2{grid-template-columns:1fr}.fb-row-main{flex-direction:column}.fb-headline-slot{width:100%}}
+@media (max-width:900px){
+ #sidebar{display:none}#topbar{display:flex}#bottomnav{display:flex}
+ #filterbar{top:var(--topbar-h);padding:10px 14px}.fb-title small{display:none}
+ #fb-toggle{display:inline-flex}#fb-panel{display:none}#fb-panel.open{display:block;max-height:calc(100vh - var(--topbar-h) - 150px);overflow-y:auto}
+ .fb-field{border-left:none;padding:6px 0 0;min-width:0;max-width:100%;width:100%}
+ #content{padding:14px 14px 84px}
+}
+@media (max-width:640px){.g4,.g3{grid-template-columns:1fr}.frow{grid-template-columns:110px 1fr 100px}}
+@media (prefers-reduced-motion:reduce){*{animation-duration:.001ms!important;transition-duration:.001ms!important}}
+
+/* ===== Plata: identidad Pospago ===== */
+#filterbar{border-bottom:3px solid var(--silver);box-shadow:0 3px 10px rgba(60,66,75,.10)}
+.nav-item.active{background:linear-gradient(135deg,#E3E6EA 0%,#A9B0BA 100%);color:#14171b}
+.sb-mascot-wrap{background:linear-gradient(160deg,#E9ECEF 0%,#9CA4AF 100%)}
+.sb-brand .sub{color:#C9CED5;opacity:1}
+.pospago-tag{display:inline-block;background:linear-gradient(135deg,#F1F3F5,#A9B0BA);color:#14171b;font-size:9.5px;font-weight:800;letter-spacing:.12em;padding:2px 8px;border-radius:20px;margin-left:8px;vertical-align:middle}
+.section-title .bar{background:linear-gradient(180deg,#D5D9DF,#8B939E)}
+table.dt thead th:first-child{background:linear-gradient(180deg,#C4CAD2,#8F97A2);color:#14171b}
+.card{border-top:3px solid var(--silver)}
+.ring-card,.etiqueta{border-top:3px solid var(--silver)}
+.narr{border:1px solid #4a5058;background:linear-gradient(135deg,#1c1f24 0%,#2a2f36 100%)}
+.narr h3{color:#DDE1E6;display:flex;align-items:center;gap:8px}.narr h3 img{width:26px}
+.narr li b{color:#fff}
+.mode-toggle{display:flex;gap:6px}.mode-btn{border:1.5px solid var(--line);background:#fff;border-radius:9px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer;color:var(--text-muted);font-family:inherit}
+.mode-btn.active{background:var(--graph);border-color:var(--graph);color:#fff}
+body:not(.dir) .dir-only{display:none}
+.pc{color:var(--text-muted);font-weight:600;font-size:11px;margin-left:3px}
+.tools input[type=search],.tools input[type=text]{border:1.5px solid var(--line);border-radius:9px;padding:6px 10px;font:inherit;font-weight:600;min-width:200px}
+.tot td{background:var(--silver-l)!important;font-weight:800}
+.tblnote{font-size:11px;color:var(--text-muted);font-weight:600;margin:6px 2px 0}
+.ok-txt{color:var(--green)}.masked{font-family:ui-monospace,Consolas,monospace;letter-spacing:.02em}
+.empty{padding:20px;text-align:center;color:var(--text-muted);font-weight:600}
+.pill-est{display:inline-block;padding:2px 9px;border-radius:20px;font-size:10.5px;font-weight:800}
+.pill-est.p{background:#e6f4e6;color:var(--green)}.pill-est.v{background:#fbe6e6;color:var(--red)}.pill-est.g{background:#fdf1de;color:var(--amber)}
+
+.muted{color:var(--gray);font-weight:600;font-size:11px}
+.subview{margin-top:26px;padding-top:6px;border-top:3px solid var(--silver,#B8BEC6)}
+.dir-card .dir-l{display:flex;flex-direction:column;gap:6px;margin-bottom:12px}
+.dir-card .dir-r{display:flex;justify-content:space-between;gap:10px;font-size:12px;border-bottom:1px solid var(--line,#E6E8EC);padding:4px 0}
+.dir-card .dir-r b{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.dir-card .dir-r span{font-weight:700;white-space:nowrap}
+#ficha{margin-bottom:14px}.ficha{display:grid;grid-template-columns:minmax(220px,1fr) 2fr;gap:14px}.ficha .bar{height:14px;border-radius:8px;background:#E1E4E8;overflow:hidden;margin:8px 0}.ficha .bar i{display:block;height:100%}
+@media (max-width:900px){.ficha{grid-template-columns:1fr}}
+
+/* ===== v5 ===== */
+.pill-est.x{background:#eceef1;color:#5F646C}
+.tools .btn{margin-left:auto}
+.btn:active{transform:scale(.97)}.btn{transition:transform .12s ease,border-color .15s}
+:focus-visible{outline:2px solid var(--orange);outline-offset:2px;border-radius:6px}
+.frase{font-size:15px;font-weight:700;line-height:1.45;margin:0 0 14px;color:var(--text)}
+.donut{display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+.donut-svg{flex:0 0 160px}.donut-leg{flex:1 1 180px;min-width:0;display:flex;flex-direction:column;gap:5px}
+.dl-row{display:grid;grid-template-columns:12px 1fr auto 52px;gap:8px;align-items:center;font-size:12px;font-weight:600}
+.dl-row i{width:12px;height:12px;border-radius:3px}.dl-n{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dl-row b{font-variant-numeric:tabular-nums}.dl-row em{font-style:normal;color:var(--text-muted);text-align:right;font-variant-numeric:tabular-nums}
+.defs-g{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}.defs-g p{margin:6px 0 0;font-size:12px;color:var(--text-muted);font-weight:600;line-height:1.45}
+.card.defs{margin-bottom:14px}
+.rk-row{display:grid;grid-template-columns:28px 1fr auto;gap:10px;align-items:center;padding:7px 0;border-bottom:1px solid #eef0f2}
+.rk-row:last-child{border-bottom:0}
+.rk-n{width:24px;height:24px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:#fff}
+.rk-n.g{background:var(--green)}.rk-n.r{background:var(--red)}
+.rk-m{min-width:0;display:flex;flex-direction:column}.rk-m b{font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.rk-m small{font-size:11px;color:var(--text-muted);font-weight:600}
+.rk-v{font-weight:800;font-size:14px;text-align:right;font-variant-numeric:tabular-nums;display:flex;flex-direction:column}.rk-v small{font-size:10.5px;color:var(--text-muted);font-weight:600}
+.rk-v.g{color:var(--green)}.rk-v.r{color:var(--red)}
+.tools select,.tools input{max-width:100%}
+@media (max-width:640px){.dl-row{grid-template-columns:12px 1fr auto 46px}.tools .btn{margin-left:0}}
+</style>
+<div id="app">
+<aside id="sidebar">
+ <div class="sb-brand"><img id="logo-gb" alt="GB"><div><div class="name">GRUPO BENBER</div><div class="sub">Centro de Mando</div></div></div>
+ <nav id="sb-nav"></nav>
+ <div class="sb-mascot-wrap"><img id="sb-mascot-img" class="sb-mascot-figure" alt="GBsaurio">
+  <div class="sb-mascot-card"><span class="sm-icon" id="sb-mascot-icon">⏳</span><div class="sm-label">GBsaurio dice:</div><div class="sm-headline" id="sb-mascot-title">Cargando…</div><span class="sm-sub" id="sb-mascot-text">Cargando datos…</span></div></div>
+</aside>
+<main id="main">
+ <div id="topbar"><div class="tb-brand"><img id="logo-gb-tb" alt="GB">Centro de Mando Pospago</div><button id="tb-menu-btn" aria-expanded="true" aria-label="Menú">☰</button></div>
+ <div id="filterbar">
+  <div class="fb-top"><div class="fb-title">Centro de Mando Pospago<span class="pospago-tag">POSPAGO</span><small id="corte-lbl"></small></div>
+   <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button class="btn" id="fb-clear">✕ Quitar filtros</button><button class="btn" id="fb-toggle">🔎 Filtros</button></div></div>
+  <div id="fb-panel"><div class="fb-row-main"><div class="fb-filters-col">
+   <div class="fb-group-fields" id="fgroups"></div>
+   <div class="fb-chips" id="chips"><span class="lbl">📅 Periodo (mes de alta) · afecta tarjetas y tablas; los comparativos mensuales son fijos</span></div>
+  </div>
+  <div class="fb-headline-slot"><div class="headline-card"><img id="res-mascot" class="hc-figure" alt=""><div class="hc-body"><div class="hc-label">Cobranza a la fecha</div>
+   <div class="hc-row"><span class="hc-tier" id="res-tier-word">—</span><span class="hc-trend" id="res-trend-ic">—</span></div><div class="hc-delta" id="res-mascot-txt"></div></div></div></div>
+  </div></div>
+ </div>
+ <div id="content">
+  <section class="view active" id="view-resumen"></section><section class="view" id="view-produccion"></section><section class="view" id="view-cobranza"></section><section class="view" id="view-morosidad"></section>
+  <section class="view" id="view-estado"></section><section class="view" id="view-comision"></section><section class="view" id="view-direccion"></section><section class="view" id="view-detalle"></section>
+  <p class="foot">Fuentes: Altas Pospago Mensual (base de todo: DN, plan, método de pago, usuario y promotor), registros FW y estatus Telefónica (causas de no conversión), vinculación, cuota Benber (CAPILARIDAD). Facturas 1 a 4; comisión del vendedor solo N1 a N3. Corte de pagos: <span id="corte"></span>. Los DN se muestran con dos dígitos censurados.</p>
+ </div>
+</main></div>
+<div id="bottomnav"><div id="bn-list"></div></div>
+<div id="ta" hidden><b>Selecciona todo y copia (Ctrl+C)</b><textarea id="tax" readonly></textarea><button class="btn primary" id="tac">Cerrar</button></div>
+<div id="toast" hidden></div>
+
+
+<script>
+const DATA=__DATA__;
+const ASSETS=__ASSETS__;
+const {meses:M,D,I,T}=DATA;
+const $=id=>document.getElementById(id), img=k=>ASSETS[k]||'';
+const MN=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+const ml=i=>{if(i<0)return'—';const [y,m]=M[i].split('-');return MN[+m-1]+' '+y.slice(2)};
+const fmt=n=>Math.round(n).toLocaleString('es-MX'), money=n=>'$'+fmt(n);
+const fr=(a,b)=>b?a/b:null, P=v=>v==null?'—':(100*v).toFixed(1)+'%';
+const sum=(a,f)=>a.reduce((s,x)=>s+f(x),0);
+/* índices de D */
+const C={reg:0,sub:1,ger:2,sup:3,cad:4,pdv:5,mreg:6,coh:7,conc:8,salud:9,alta:10,enrol:11,tel:12,lin:13,plan:14,forma:15,estado:16,fgen:17,fpag:18,fven:19,fvig:20,fpg:21,lid:22,ter:23,srg:24,atr:25,enreg:26,encal:27,dn:28,tpag:29,mbaja:30,expo:31,teld:32,dreg:33,dact:34,comA:35,idpdv:36,dnv:37,prom:38,usr:39,rst:40};
+/* bandas y GBsaurio */
+const pctBand=p=>p==null?null:p<60?'rd':p<75?'n':p<90?'a':'g';
+const BAND_COLOR={rd:'#DC2626',n:'#F2790A',a:'#D97706',g:'#1E7A1E'}, BAND_CLS={rd:'cell-red',n:'cell-orange',a:'cell-amber',g:'cell-green'};
+const bc=p=>{const b=pctBand(p);return b?BAND_COLOR[b]:'#8a8f97'};
+const mState=p=>p==null?'cargando':({rd:'molesto',n:'triste',a:'ok',g:'emocionado'})[pctBand(p)];
+const MA={cargando:['gbsaurio_neutral_mini','gbsaurio_cargando'],molesto:['gbsaurio_molesto_mini','gbsaurio_molesto_full'],triste:['gbsaurio_triste_mini','gbsaurio_triste_full'],ok:['gbsaurio_ok_mini','gbsaurio_ok_full'],emocionado:['gbsaurio_celebrando_mini','gbsaurio_celebracion_full']};
+const mImg=(p,s)=>img(MA[mState(p)][s==='full'?1:0]);
+const MFRASE={cargando:'Cargando datos…',molesto:'Cobranza crítica: prioriza esto ya.',triste:'Hay mucho por recuperar, hay que reaccionar.',ok:'Vas bien, todavía puedes mejorar.',emocionado:'¡Cobranza en objetivo, sigue así!'};
+const MHEAD={cargando:'Cargando…',molesto:'¡Foco urgente!',triste:'¡Vamos, se puede!',ok:'¡Buen avance!',emocionado:'¡Excelente trabajo!'};
+const MCOL={cargando:'#9aa0a8',molesto:'#F87171',triste:'#FDBA74',ok:'#FBBF24',emocionado:'#4ADE80'}, MICON={cargando:'⏳',molesto:'🚨',triste:'⚠️',ok:'👍',emocionado:'🎉'};
+const TIER={rd:'CRÍTICO',n:'REGULAR',a:'BIEN',g:'EXCELENTE'};
+const pctCell=v=>{if(v==null)return'—';const p=v*100,b=pctBand(p);return `<span class="${BAND_CLS[b]}">${b==='g'?'<span class="pct-ico ok">✓</span>':''}${p.toFixed(1)}%</span>`};
+const CPAG='#1E7A1E',CVEN='#DC2626',CVIG='#D97706',CGEN='#B6BCC4';
+/* filtros (cada uno limita a los demás) */
+const FL=[{k:'reg',l:'📍 Región',ix:C.reg,n:DATA.reg},{k:'estado',l:'🗺️ Estado',ix:C.estado,n:DATA.estado},{k:'sub',l:'🏙️ Subdirección',ix:C.sub,n:DATA.sub},{k:'ger',l:'🧑‍💼 Gerente / Líder',ix:C.ger,n:DATA.ger},{k:'lid',l:'👤 Líder zonal',ix:C.lid,n:DATA.lid},{k:'sup',l:'🧭 Supervisor',ix:C.sup,n:DATA.sup},{k:'pdv',l:'🏬 Tienda',ix:C.pdv,n:DATA.pdv},{k:'cad',l:'🔗 Cadena',ix:C.cad,n:DATA.cad}];
+const DIMS=[['reg','Región',C.reg,DATA.reg],['estado','Estado',C.estado,DATA.estado],['sub','Subdirección',C.sub,DATA.sub],['ger','Gerente / Líder',C.ger,DATA.ger],['lid','Líder zonal',C.lid,DATA.lid],['ter','Subdirector Telefónica',C.ter,DATA.ter],['srg','Sub región',C.srg,DATA.srg],['sup','Supervisor',C.sup,DATA.sup],['prom','Promotor',C.prom,DATA.prom],['pdv','Tienda',C.pdv,DATA.pdv],['cad','Cadena',C.cad,DATA.cad],['plan','Plan',C.plan,DATA.plan],['forma','Método de pago',C.forma,DATA.forma]].map(([k,l,ix,n])=>({k,l,ix,n}));
+const sel={};FL.forEach(f=>sel[f.k]=-1);let coh=new Set();
+const passExcept=(r,ex)=>FL.every(f=>f.k===ex||sel[f.k]<0||r[f.ix]===sel[f.k]);
+function fillSel(){let ch=true,g=0;while(ch&&g++<4){ch=false;FL.forEach(f=>{const s=new Set();D.forEach(r=>{if(passExcept(r,f.k))s.add(r[f.ix])});if(sel[f.k]>=0&&!s.has(sel[f.k])){sel[f.k]=-1;ch=true}f._o=[...s].sort((a,b)=>f.n[a].localeCompare(f.n[b]))})}
+ FL.forEach(f=>{const el=$('f_'+f.k);el.innerHTML='<option value="-1">Todos</option>'+f._o.map(i=>`<option value="${i}">${f.n[i]}</option>`).join('');el.value=sel[f.k]})}
+function buildFilters(){$('fgroups').innerHTML=FL.map(f=>`<div class="fb-field"><label>${f.l}</label><select id="f_${f.k}"></select></div>`).join('');
+ FL.forEach(f=>$('f_'+f.k).addEventListener('change',e=>{sel[f.k]=+e.target.value;fillSel();render()}));
+ const c=$('chips');[...new Set(D.map(r=>r[C.coh]).filter(x=>x>=0))].sort((a,b)=>a-b).forEach(m=>{const b=document.createElement('button');b.className='chip';b.textContent=ml(m);b.setAttribute('aria-pressed','false');b.onclick=()=>{coh.has(m)?coh.delete(m):coh.add(m);b.setAttribute('aria-pressed',coh.has(m));render()};c.appendChild(b)})}
+$('fb-clear').onclick=()=>{FL.forEach(f=>sel[f.k]=-1);coh.clear();document.querySelectorAll('.chip').forEach(b=>b.setAttribute('aria-pressed','false'));fillSel();render()};
+let F=[],FI=[],R=[],U=[],FS=new Set();
+const passAll=r=>FL.every(f=>sel[f.k]<0||r[f.ix]===sel[f.k]);
+/* ================= v5 · núcleo ================= */
+const {S,Q}=DATA;
+const QMg=M.map((_,m)=>Q.some(q=>q[m]>0));
+const RATE=[45,78,89],RMAX=212,CANC=l=>l===3||l===4||l===5,CANCD=r=>CANC(r[C.lin])||r[C.expo]===1;
+const mny=a=>a[0]*RATE[0]+a[1]*RATE[1]+a[2]*RATE[2];
+const z=n=>Array(n).fill(0);
+/* situación de N1–N3 por DN (-1 = aún no existe): 0 pagada · 1 vencida · 2 vigente · 3 por generar */
+const STN=new Map(),N1=new Map();
+I.forEach(x=>{if(x[2]<=3){let a=STN.get(x[0]);if(!a){a=[-1,-1,-1];STN.set(x[0],a)}a[x[2]-1]=x[1]}if(x[2]===1&&x[1]<3)N1.set(x[0],[x[1],x[6]])});
+/* meses históricos: los últimos 4 con altas en toda la base (no dependen del filtro de periodo) */
+const HM=(()=>{const c=z(M.length);D.forEach(r=>{if(r[C.alta]&&r[C.coh]>=0)c[r[C.coh]]++});return M.map((_,m)=>m).filter(m=>c[m]>0).slice(-4)})();
+let SF=[],QS=[],DNS=new Map(),DNSA=new Map(),FA=[],FIA=[],UA=[],RA=[];
+function mkDNS(arr){const m=new Map();arr.forEach(x=>{if(x[1]>=3||!x[6])return;let s=m.get(x[0]);if(!s){s=[0,0,0,0];m.set(x[0],s)}s[0]++;if(x[1]===0)s[1]++;else if(x[1]===1){s[2]++;if(x[5]>s[3])s[3]=x[5]}});return m}
+function compute(){F=[];R=[];FA=[];RA=[];D.forEach((r,i)=>{if(!passAll(r))return;FA.push(i);if(r[C.enreg])RA.push(i);if(!coh.size||coh.has(r[C.coh]))F.push(i);if(r[C.enreg]&&(!coh.size||coh.has(r[C.mreg])))R.push(i)});
+ FS=new Set(F);const FSA=new Set(FA);FI=I.filter(x=>FS.has(x[0]));FIA=I.filter(x=>FSA.has(x[0]));U=F.filter(i=>D[i][C.alta]);UA=FA.filter(i=>D[i][C.alta]);
+ SF=[];S.forEach((r,i)=>{if(passAll(r))SF.push(i)});QS=M.map((_,m)=>m).filter(m=>QMg[m]&&(!coh.size||coh.has(m)));
+ DNS=mkDNS(FI);DNSA=mkDNS(FIA)}
+const NB=['100%','75–99%','50–74%','1–49%','0%','Sin vencidas aún'];
+const MB=[['1–7 días',0,7],['8–15 días',8,15],['16–30 días',16,30],['31–60 días',31,60],['Más de 60 días',61,99999]];
+const RST=DATA.rst,RSTC=['#1E7A1E','#D97706','#D97706','#DC2626','#8B939E','#3B4048','#F2790A','#DC2626','#B6BCC4'];
+function blank(k){return {k,dn:0,sinF:0,gen:0,pag:0,ven:0,vig:0,pg:0,due:0,dp:0,ant:0,g:z(4),p:z(4),v:z(4),vg:z(4),pgN:z(4),reg:0,altaR:0,rs:z(9),baja:0,pdes:0,bAd:0,bSin:0,durS:0,durN:0,q:0,aq:0,cb:z(6),es:z(4),mo:z(5),moD:z(5),atS:0,atN:0,cg:z(3),cr:z(3),cp:z(3),cx:z(3),risk:0,pl:{},_pr:new Set(),_ti:new Set(),prs:0,tie:0}}
+function agg(ix,FF=F,FII=FI,RR=R,DD=DNS){const m=new Map(),get=k=>{if(!m.has(k))m.set(k,blank(k));return m.get(k)};
+ FF.forEach(i=>{const r=D[i],o=get(r[ix]);if(!r[C.alta])return;o.dn++;if(QMg[r[C.coh]])o.aq++;if(r[C.fgen]===0)o.sinF++;const l=r[C.lin];
+  o.pl[r[C.plan]]=(o.pl[r[C.plan]]||0)+1;o._pr.add(r[C.usr]);o._ti.add(r[C.pdv]);
+  if(CANC(l)){l===3?o.baja++:o.pdes++;r[C.fven]>0?o.bAd++:o.bSin++;if(r[C.dact]>=0){o.durS+=r[C.dact];o.durN++}}
+  const st=STN.get(i)||[-1,-1,-1],can=CANCD(r);let rec=0;
+  for(let n=0;n<3;n++){const c=st[n];if(c===0)o.cg[n]++;else if(can)o.cx[n]++;else if(c===1){o.cr[n]++;rec+=RATE[n]}else o.cp[n]++}
+  const s=DD.get(i);if(!s||!s[0]){o.cb[5]++;o.es[3]++}else{const p=s[1]/s[0];o.cb[p>=1?0:p>=.75?1:p>=.5?2:p>0?3:4]++;o.es[s[2]===0?0:s[2]===1?1:2]++;if(s[2]>=2)o.risk+=rec;if(s[2]>0){const b=MB.findIndex(q=>s[3]>=q[1]&&s[3]<=q[2]);if(b>=0)o.moD[b]++}}});
+ FII.forEach(x=>{const r=D[x[0]],o=get(r[ix]),c=x[1],n=x[2]-1;
+  if(c===3){o.pg++;o.pgN[n]++}
+  else{o.gen++;o.g[n]++;
+   if(c===0){o.pag++;o.p[n]++;if(x[7])o.ant++}
+   else if(c===1){o.ven++;o.v[n]++;const b=MB.findIndex(q=>x[5]>=q[1]&&x[5]<=q[2]);if(b>=0){o.mo[b]++;o.atS+=x[5];o.atN++}}
+   else{o.vig++;o.vg[n]++}
+   if(x[6]){o.due++;if(c===0)o.dp++}}});
+ RR.forEach(i=>{const r=D[i],o=get(r[ix]);o.reg++;if(r[C.alta])o.altaR++;o.rs[r[C.rst]]++});
+ if(FF===F)SF.forEach(i=>{const o=get(S[i][ix]);QS.forEach(mm=>o.q+=Q[i][mm])});
+ m.forEach(o=>{o.prs=o._pr.size;o.tie=o._ti.size});return m}
+function tot(rows){const t=blank(-1);rows.forEach(o=>{for(const k in t){if(k==='k'||k[0]==='_'||k==='prs'||k==='tie')continue;if(k==='pl'){for(const q in o.pl)t.pl[q]=(t.pl[q]||0)+o.pl[q]}else if(Array.isArray(t[k]))o[k].forEach((v,j)=>t[k][j]+=v);else t[k]+=o[k]}o._pr.forEach(v=>t._pr.add(v));o._ti.forEach(v=>t._ti.add(v))});t.prs=t._pr.size;t.tie=t._ti.size;return t}
+/* ---------- valores de comisión del vendedor ---------- */
+const cGen=o=>mny(o.cg),cRec=o=>mny(o.cr),cPen=o=>mny(o.cp),cPer=o=>mny(o.cx),cPot=o=>o.dn*RMAX;
+/* ---------- exportar CSV (descarga del visor; si no hay, se copia) ---------- */
+let DL=null;try{if(window.claude&&claude.use)claude.use('downloads').then(d=>{DL=d}).catch(()=>{})}catch(e){}
+async function exportCsv(name,heads,rows){const esc=v=>{v=v==null?'':String(v);return /[",\n\r]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v};
+ const txt='﻿'+[heads,...rows].map(r=>r.map(esc).join(',')).join('\r\n'),fn=`${name}_${DATA.corte}.csv`;
+ if(DL){try{await DL.save({filename:fn,data:txt});return}catch(e){if(e&&(e.code==='declined'||e.code==='rate_limited'))return}}
+ if(!window.claude){try{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([txt],{type:'text/csv;charset=utf-8'}));a.download=fn;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1500);return}catch(e){}}
+ copy(txt.slice(1),rows.length,'CSV')}
+/* ---------- tablas con vista intercambiable ---------- */
+const ST={};
+const cellTxt=(c,o)=>{if(c.h)return c.h(o);const v=c.n(o);if(c.pct)return v==null?'—':c.band?pctCell(v):P(v);if(c.money)return money(v);if(c.dec!=null)return v<0?'—':v.toFixed(c.dec);return fmt(v)};
+const cellCsv=(c,o)=>{const v=c.n(o);if(c.h)return c.txt?c.txt(o):v;if(c.pct)return v==null?'':(100*v).toFixed(1);if(c.dec!=null)return v<0?'':v.toFixed(c.dec);return Math.round(v*100)/100};
+function dimTable(id,cols,dflt,extra){extra=extra||{};const st=ST[id]=ST[id]||{dim:dflt.dim||'sup',sk:dflt.sk??-1,sd:dflt.sd||-1};const box=$('tb_'+id);if(!box)return;
+ const old=box.querySelector('.tbl-wrap'),sx=old?old.scrollLeft:0,sy=old?old.scrollTop:0,wy=window.scrollY;
+ const dim=DIMS.find(d=>d.k===st.dim),m=agg(dim.ix);let rows=[...m.values()].map(o=>(o.name=dim.n[o.k],o));
+ rows=rows.filter(extra.filter||(o=>o.dn>0||o.reg>0||o.gen>0||o.pg>0||(extra.keepQ&&o.q>0)));const T0=tot(rows);
+ if(extra.post)extra.post(rows,T0);
+ const val=(o,c)=>{const v=cols[c].n(o);return v==null?-1e12:v};
+ rows.sort((a,b)=>st.sk===-1?st.sd*String(a.name).localeCompare(b.name):st.sd*(val(a,st.sk)-val(b,st.sk)));
+ const hd=`<tr><th class="s" data-c="-1">${dim.l}${st.sk===-1?(st.sd<0?' ▼':' ▲'):''}</th>${cols.map((c,j)=>`<th class="s ${c.c||''}" data-c="${j}">${c.l}${st.sk===j?(st.sd<0?' ▼':' ▲'):''}</th>`).join('')}</tr>`;
+ const shown=rows.slice(0,400);
+ box.innerHTML=(extra.kpis?`<div class="etiqueta-row">${extra.kpis(T0,rows)}</div>`:'')+`<div class="tools"><label>Ver por <select id="ds_${id}">${DIMS.map(d=>`<option value="${d.k}"${d.k===st.dim?' selected':''}>${d.l}</option>`).join('')}</select></label><button class="btn" id="cp_${id}">Exportar CSV</button><span>${fmt(rows.length)} filas${rows.length>400?' · se muestran 400 (el CSV trae todas)':''}</span></div>
+ <div class="tbl-wrap" style="max-height:560px;overflow:auto"><table class="dt"><thead>${hd}</thead><tbody>${shown.map(o=>`<tr><td title="${o.name}">${o.name}</td>${cols.map(c=>`<td>${cellTxt(c,o)}</td>`).join('')}</tr>`).join('')||`<tr><td colspan="${cols.length+1}" class="empty">Sin datos con los filtros actuales.</td></tr>`}</tbody></table></div>`;
+ const nw=box.querySelector('.tbl-wrap');nw.scrollLeft=sx;nw.scrollTop=sy;window.scrollTo(window.scrollX,wy);
+ $('ds_'+id).onchange=e=>{st.dim=e.target.value;st.sk=dflt.sk??-1;st.sd=dflt.sd||-1;dimTable(id,cols,dflt,extra)};
+ box.querySelectorAll('th.s').forEach(th=>th.onclick=()=>{const c=+th.dataset.c;st.sd=st.sk===c?-st.sd:(c===-1?1:-1);st.sk=c;dimTable(id,cols,dflt,extra)});
+ $('cp_'+id).onclick=()=>exportCsv('centro-mando-'+id,[dim.l,...cols.map(c=>c.l)],rows.map(o=>[o.name,...cols.map(c=>cellCsv(c,o))]))}
+const tblBox=id=>`<div id="tb_${id}"></div>`;
+
+function ring(title,p,center,cap,rows){const r=52,c=2*Math.PI*r,v=p==null?0:Math.max(0,Math.min(100,p)),col=bc(p);
+ return `<div class="card ring-card"><div class="ring-title"><img src="${mImg(p,'mini')}" alt="">${title}</div><div class="ring-wrap"><svg viewBox="0 0 134 134" width="134" height="134"><circle cx="67" cy="67" r="${r}" fill="none" stroke="#E1E4E8" stroke-width="14"/><circle cx="67" cy="67" r="${r}" fill="none" stroke="${col}" stroke-width="14" stroke-linecap="round" stroke-dasharray="${c*v/100} ${c}" transform="rotate(-90 67 67)"/></svg><div class="ring-center"><div class="n" style="color:${col}">${center}</div><div class="cap">${cap}</div></div></div>${rows.map(x=>`<div class="re-row">${x}</div>`).join('')}</div>`}
+const etq=(l,v,s,c)=>`<div class="etiqueta"><div class="et-lbl">${l}</div><div class="et-val" style="${c?'color:'+c:''}">${v}</div><div class="et-sub">${s||''}</div></div>`;
+const head=(t,sub,p)=>`<div class="page-head"><div><h2>${t}</h2><div class="sub">${sub}</div></div>${p!==undefined?`<div class="sec-mascot"><img src="${mImg(p==null?null:p*100,'mini')}" alt=""><span>${MFRASE[mState(p==null?null:p*100)]}</span></div>`:''}</div>`;
+const sect=t=>`<div class="section-title"><div class="bar"></div><h3>${t}</h3></div>`;
+function stackChart(cats,series,line,yfmt){
+ const W=640,H=270,L=58,Rr=44,T=14,B=30,iw=W-L-Rr,ih=H-T-B;const tot=cats.map((_,i)=>series.reduce((s,x)=>s+x.v[i],0));let mx=Math.max(1,...tot);const st=Math.pow(10,Math.floor(Math.log10(mx)));mx=Math.ceil(mx/st)*st;
+ let g='';for(let t=0;t<=4;t++){const y=T+ih-ih*t/4;g+=`<line class="g" x1="${L}" x2="${W-Rr}" y1="${y}" y2="${y}"/><text x="${L-6}" y="${y+4}" text-anchor="end">${fmt(mx*t/4)}</text>${line?`<text x="${W-Rr+6}" y="${y+4}">${25*t}%</text>`:''}`}
+ const bw=iw/cats.length;let bars='';cats.forEach((c,i)=>{let y=T+ih;series.forEach(s=>{const h=ih*s.v[i]/mx;if(h>0){y-=h;bars+=`<rect x="${L+i*bw+bw*.18}" y="${y}" width="${bw*.64}" height="${h}" rx="2" style="fill:${s.c}"><title>${c} · ${s.n}: ${fmt(s.v[i])}</title></rect>`}});bars+=`<text x="${L+i*bw+bw/2}" y="${H-10}" text-anchor="middle">${c}</text>`});
+ let ln='';if(line){const pts=line.v.map((v,i)=>v==null?null:[L+i*bw+bw/2,T+ih-ih*v/100]);const d=pts.filter(Boolean).map((p,i)=>(i?'L':'M')+p[0].toFixed(1)+' '+p[1].toFixed(1)).join('');
+  ln=`<path d="${d}" style="fill:none;stroke:#17191D;stroke-width:2.2"/>`+pts.map((p,i)=>p?`<circle cx="${p[0]}" cy="${p[1]}" r="3.6" style="fill:#fff;stroke:#17191D;stroke-width:2"><title>${cats[i]} · ${line.n}: ${line.v[i].toFixed(1)}%</title></circle><text x="${p[0]}" y="${p[1]-8}" text-anchor="middle" style="fill:#17191D;font-weight:800">${line.v[i].toFixed(0)}%</text>`:'').join('')}
+ return `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img">${g}${bars}${ln}</svg>`}
+const legend=items=>`<div class="leg">${items.map(([n,c,l])=>`<span><b style="${l?'height:3px;vertical-align:3px;':''}background:${c}"></b>${n}</span>`).join('')}</div>`;
+function hbars(items,tot,cols){const mx=Math.max(1,...items.map(x=>x[1]));return `<div class="funnel">`+items.map(([l,v],k)=>`<div class="frow"><span>${l}</span><div class="fb"><i style="width:${100*v/mx}%;background:${cols[k]||'#5C2483'}"></i></div><span>${fmt(v)} · ${P(fr(v,tot))}</span></div>`).join('')+`</div>`}
+/* ---------- base ---------- */
+let B={};
+function base(){const gen=FI.filter(x=>x[1]<3),pag=gen.filter(x=>x[1]===0),ven=gen.filter(x=>x[1]===1),vig=gen.filter(x=>x[1]===2),pg=FI.filter(x=>x[1]===3),due=gen.filter(x=>x[6]),duep=due.filter(x=>x[1]===0),ant=pag.filter(x=>x[7]).length;
+ const sinF=U.filter(i=>D[i][C.fgen]===0),n=R.length,alta=R.filter(i=>D[i][C.alta]).length;
+ const q=SF.reduce((s,i)=>s+QS.reduce((a,m)=>a+Q[i][m],0),0),aq=U.filter(i=>QMg[D[i][C.coh]]).length;
+ let e0=0,e1=0,e2=0,e3=0;U.forEach(i=>{const s=DNS.get(i);if(!s||!s[0])e3++;else if(s[2]===0)e0++;else if(s[2]===1)e1++;else e2++});
+ const prs=new Set(U.map(i=>D[i][C.usr])).size,tie=new Set(U.map(i=>D[i][C.pdv])).size;
+ const ct=tot([...agg(C.reg).values()]);
+ return {gen,pag,ven,vig,pg,due,duep,ant,sinF,dn:U.length,cob:fr(duep.length,due.length),ppag:fr(pag.length,gen.length),psan:fr(e0,e0+e1+e2),n,alta,pconv:fr(alta,n),q,aq,alc:fr(aq,q),gap:aq-q,prs,tie,es:[e0,e1,e2,e3],ct}}
+/* ---------- componentes nuevos ---------- */
+const PAL=['#5C2483','#00509C','#1E7A1E','#F2790A','#B5179E','#0E8A8A','#D97706','#3B4048','#DC2626','#8B939E'];
+const PLC=(()=>{const c={};D.forEach(r=>{if(r[C.alta])c[r[C.plan]]=(c[r[C.plan]]||0)+1});const o=Object.keys(c).sort((a,b)=>c[b]-c[a]);const m={};o.forEach((k,j)=>m[k]=PAL[j%PAL.length]);return m})();
+const FMC={'Efectivo':'#8B939E','Tarjeta de débito':'#00509C','Tarjeta de crédito':'#5C2483','Sin dato':'#D5D9DF'};
+function donut(items,center,sub){const tt=sum(items,x=>x[1]);if(!tt)return '<p class="note">Sin datos con los filtros actuales.</p>';const r=56,c=2*Math.PI*r;let off=0,seg='';
+ items.forEach(([l,v,col])=>{if(!v)return;const len=c*v/tt;seg+=`<circle cx="80" cy="80" r="${r}" fill="none" stroke="${col}" stroke-width="26" stroke-dasharray="${Math.max(len-1.5,.5)} ${c-Math.max(len-1.5,.5)}" stroke-dashoffset="${-off}" transform="rotate(-90 80 80)"><title>${l}: ${fmt(v)} (${P(v/tt)})</title></circle>`;off+=len});
+ return `<div class="donut"><div class="donut-svg"><svg viewBox="0 0 160 160" width="160" height="160" role="img">${seg}<text x="80" y="78" text-anchor="middle" style="font-size:20px;font-weight:800;fill:#17191D">${center}</text><text x="80" y="95" text-anchor="middle" style="font-size:10px">${sub||''}</text></svg></div><div class="donut-leg">${items.filter(x=>x[1]>0).map(([l,v,col])=>`<div class="dl-row"><i style="background:${col}"></i><span class="dl-n" title="${l}">${l}</span><b>${fmt(v)}</b><em>${P(v/tt)}</em></div>`).join('')}</div></div>`}
+const donutBox=(tit,items,c,s)=>`<div class="card"><div class="ring-title" style="margin-bottom:10px">${tit}</div>${donut(items,c,s)}</div>`;
+const planItems=(arr)=>{const c={};arr.forEach(i=>{const p=D[i][C.plan];c[p]=(c[p]||0)+1});const o=Object.keys(c).sort((a,b)=>c[b]-c[a]),top=o.slice(0,7).map(k=>[DATA.plan[k],c[k],PLC[k]||'#8B939E']),rest=o.slice(7).reduce((s,k)=>s+c[k],0);if(rest)top.push(['Otros planes',rest,'#D5D9DF']);return top};
+const formaItems=arr=>{const c={};arr.forEach(i=>{const p=D[i][C.forma];c[p]=(c[p]||0)+1});return Object.keys(c).sort((a,b)=>c[b]-c[a]).map(k=>[DATA.forma[k],c[k],FMC[DATA.forma[k]]||'#8B939E'])};
+const sgn=n=>(n>0?'+':'')+fmt(n),gapColor=n=>n>=0?'var(--green)':'var(--red)';
+const alcCell=(aq,q)=>q>0?pctCell(aq/q):'<span class="muted">sin cuota</span>';
+const hint=t=>`<p class="note">${t}</p>`;
+const HNOTE='Las gráficas y tablas de comparativo mensual muestran siempre los últimos 4 meses de alta; las tarjetas y tablas por zona sí siguen el periodo que elijas.';
+
+/* ---- gráfica de barras agrupadas (cuota vs altas) ---- */
+function groupChart(cats,series,yfmt){const W=640,H=270,L=46,Rr=16,T=22,B=30,iw=W-L-Rr,ih=H-T-B;let mx=Math.max(1,...series.flatMap(s=>s.v));const st=Math.pow(10,Math.floor(Math.log10(mx)));mx=Math.ceil(mx/st)*st;
+ let g='';for(let t=0;t<=4;t++){const y=T+ih-ih*t/4;g+=`<line class="g" x1="${L}" x2="${W-Rr}" y1="${y}" y2="${y}"/><text x="${L-6}" y="${y+4}" text-anchor="end">${fmt(mx*t/4)}</text>`}
+ const bw=iw/cats.length,k=series.length,w=bw*.72/k;let bars='';cats.forEach((c,i)=>{series.forEach((s,j)=>{const h=ih*s.v[i]/mx,x=L+i*bw+bw*.14+j*w;bars+=`<rect x="${x}" y="${T+ih-h}" width="${w-2}" height="${h}" rx="2" style="fill:${s.c}"><title>${c} · ${s.n}: ${fmt(s.v[i])}</title></rect><text x="${x+(w-2)/2}" y="${T+ih-h-4}" text-anchor="middle" style="font-weight:700">${s.v[i]?fmt(s.v[i]):''}</text>`});bars+=`<text x="${L+i*bw+bw/2}" y="${H-10}" text-anchor="middle">${c}</text>`});
+ return `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img">${g}${bars}</svg>`}
+function headlineUpdate(){const p=B.cob==null?null:B.cob*100,st=mState(p);
+ $('res-mascot').src=mImg(p,'full');const t=$('res-tier-word');t.textContent=p==null?'—':TIER[pctBand(p)];t.style.color=bc(p);
+ const ti=$('res-trend-ic');const good=p!=null&&p>=90;ti.textContent=good?'▲':'▼';ti.style.color=good?'var(--green)':'var(--red)';ti.style.background=good?'#e6f4e6':'#fbe6e6';
+ $('res-mascot-txt').textContent=p==null?'':`${fmt(B.duep.length)} de ${fmt(B.due.length)} facturas consideradas pagadas (${P(B.cob)})`;
+ $('sb-mascot-img').src=mImg(p,'full');$('sb-mascot-title').textContent=MHEAD[st];$('sb-mascot-title').style.color=MCOL[st];$('sb-mascot-text').textContent=MFRASE[st];$('sb-mascot-icon').textContent=MICON[st]}
+/* ================= histórico (ignora el filtro de periodo) ================= */
+function hist(){const idx=HM,pos=new Map(idx.map((m,j)=>[m,j])),k=idx.length;
+ const al=z(k),q1d=z(k),q1p=z(k),dd=z(k),dp=z(k),dnc=z(k),cu=z(k),es=idx.map(()=>[0,0,0,0]),rg=z(k),ra=z(k);
+ UA.forEach(i=>{const j=pos.get(D[i][C.coh]);if(j==null)return;al[j]++;const n1=N1.get(i);if(n1&&n1[1]){q1d[j]++;if(n1[0]===0)q1p[j]++}const s=DNSA.get(i);if(s&&s[0]){dnc[j]++;es[j][s[2]===0?0:s[2]===1?1:2]++}else es[j][3]++});
+ FIA.forEach(x=>{if(x[1]<3&&x[6]){const j=pos.get(D[x[0]][C.coh]);if(j!=null){dd[j]++;if(x[1]===0)dp[j]++}}});
+ RA.forEach(i=>{const j=pos.get(D[i][C.mreg]);if(j!=null){rg[j]++;if(D[i][C.alta])ra[j]++}});
+ SF.forEach(i=>idx.forEach((m,j)=>cu[j]+=Q[i][m]));
+ return {idx,al,q1d,q1p,dd,dp,dnc,cu,es,rg,ra}}
+const hcats=h=>h.idx.map(ml);
+/* ================= RESUMEN ================= */
+function vResumen(){const b=B,h=hist(),ac=b.alc==null?null:b.alc*100,q1=h.idx.map((_,j)=>h.q1d[j]?100*h.q1p[j]/h.q1d[j]:null);
+ const rows=h.idx.map((m,j)=>`<tr><td>${ml(m)}</td><td>${fmt(h.al[j])}</td><td>${fmt(h.q1d[j])}</td><td>${fmt(h.q1p[j])}</td><td>${q1[j]==null?'—':pctCell(q1[j]/100)}</td><td>${fmt(h.al[j]-h.q1d[j])}</td></tr>`).join('');
+ $('view-resumen').innerHTML=head('Resumen','¿Estamos vendiendo, convirtiendo y cobrando? Las tarjetas siguen el periodo de alta que elijas; los comparativos por mes son siempre los últimos 4 meses.',b.cob)+
+ sect('Producción y conversión')+`<div class="etiqueta-row">${etq('Altas (DN únicos)',fmt(b.dn),`${fmt(b.dn-b.sinF.length)} ya con factura`)}${etq('Cuota',b.q?fmt(b.q):'—',b.q?'pospago del periodo':'sin cuota en el periodo')}${etq('Alcance',b.alc==null?'—':P(b.alc),b.q?`${fmt(b.aq)} altas de ${fmt(b.q)}`:'',ac==null?'':bc(ac))}${etq('Gap',b.q?sgn(b.gap):'—','altas menos cuota',b.q?gapColor(b.gap):'')}${etq('Conversión',P(b.pconv),`${fmt(b.alta)} altas de ${fmt(b.n)} registros`,b.pconv==null?'':bc(b.pconv*100))}</div>`+
+ sect('Cobranza')+`<div class="etiqueta-row">${etq('Facturas consideradas',fmt(b.due.length),'vencidas + pagadas antes de vencer')}${etq('Pagadas',fmt(b.duep.length),b.ant?`incluye ${fmt(b.ant)} pagadas antes de vencer`:'','var(--green)')}${etq('Vencidas sin pago',fmt(b.due.length-b.duep.length),'','var(--red)')}${etq('DN sin facturas vencidas',fmt(b.es[3]),'aún no se evalúan','var(--gray)')}${etq('Números sanos',P(b.psan),`${fmt(b.es[0])} de ${fmt(b.es[0]+b.es[1]+b.es[2])} evaluados`,b.psan==null?'':bc(b.psan*100))}</div>
+ <div class="grid g4 stagger">${ring('Cobranza a la fecha',b.cob==null?null:b.cob*100,P(b.cob),'cobranza',[`Pagadas <b>${fmt(b.duep.length)}</b> de <b>${fmt(b.due.length)}</b>`,`Sin pago <b>${fmt(b.due.length-b.duep.length)}</b>`])}
+ ${ring('Alcance de cuota',ac,b.alc==null?'—':P(b.alc),'alcance',[`Altas <b>${fmt(b.aq)}</b> de <b>${fmt(b.q)}</b> de cuota`,b.q?`Gap <b>${sgn(b.gap)}</b>`:'Sin cuota cargada'])}
+ ${ring('Registro → alta',b.pconv==null?null:b.pconv*100,P(b.pconv),'con alta',[`Altas <b>${fmt(b.alta)}</b> de <b>${fmt(b.n)}</b> registros`,`Sin alta <b>${fmt(b.n-b.alta)}</b>`])}
+ ${ring('Números sanos',b.psan==null?null:b.psan*100,P(b.psan),'sanos',[`Sanos <b>${fmt(b.es[0])}</b>`,`Con pendiente o críticos <b>${fmt(b.es[1]+b.es[2])}</b>`])}</div>`+
+ sect('Altas por mes y calidad de la primera factura')+hint('Calidad de primera factura: de los DN cuya primera factura ya venció, qué porcentaje la pagó. Sube mes con mes cuando mejora la cobranza desde el arranque. '+HNOTE)+
+ `<div class="grid g2"><div class="card">${legend([['Altas (DN únicos)',CGEN],['% que pagó su 1ª factura','#17191D',1]])}${stackChart(hcats(h),[{n:'Altas (DN únicos)',c:CGEN,v:h.al}],{n:'% que pagó su 1ª factura',v:q1})}</div>
+ <div class="tbl-wrap"><table class="dt"><thead><tr><th>Mes de alta</th><th class="th-total">Altas (DN únicos)</th><th class="th-total">DN con 1ª factura vencida</th><th class="th-porta">Pagaron su 1ª</th><th>% 1ª pagada</th><th class="th-pospago">Aún sin 1ª vencida</th></tr></thead><tbody>${rows}</tbody></table></div></div>`}
+
+/* ================= PRODUCCIÓN + CONVERSIÓN ================= */
+const PLT=Object.keys(PLC).slice(0,3);
+const PROD_COLS=[
+ {l:'Registros',c:'th-total',n:o=>o.reg},
+ {l:'Altas (DN únicos)',c:'th-porta',n:o=>o.dn},
+ {l:'% Conversión',c:'th-porta',pct:1,band:1,n:o=>fr(o.altaR,o.reg)},
+ {l:'Cuota',c:'th-total',n:o=>o.q},
+ {l:'Alcance',c:'th-porta',pct:1,band:1,n:o=>o.q?o.aq/o.q:null},
+ {l:'Gap (altas − cuota)',c:'th-red',n:o=>o.q?o.aq-o.q:-99999,h:o=>o.q?`<span style="color:${gapColor(o.aq-o.q)}">${sgn(o.aq-o.q)}</span>`:'—',txt:o=>o.q?o.aq-o.q:''},
+ {l:'Promedio por vendedor',c:'th-pospago',dec:1,n:o=>o.prs?o.dn/o.prs:-1},
+ {l:'Promedio por tienda',c:'th-pospago',dec:1,n:o=>o.tie?o.dn/o.tie:-1},
+ ...PLT.map(k=>({l:DATA.plan[k],c:'th-checks',n:o=>o.pl[k]||0})),
+ {l:'Otros planes',c:'th-checks',n:o=>o.dn-sum(PLT,k=>o.pl[k]||0)}];
+const CAU_COLS=[{l:'Registros',c:'th-total',n:o=>o.reg},{l:'Altas',c:'th-porta',n:o=>o.rs[0]},...[1,2,3,4,5,6,7,8].map(k=>({l:RST[k],c:k>=6?'th-red':'th-checks',n:o=>o.rs[k]}))];
+const RSTP=['altas','altas en Telefónica aún sin llegar a la base','activos','exportados','prepago','bajas','no enrolados','no existen','pendientes'];
+function vProd(){const b=B,h=hist(),ac=b.alc==null?null:b.alc*100,n=R.length,rs=z(9);R.forEach(i=>rs[D[i][C.rst]]++);
+ const conv=h.rg.map((v,j)=>v?100*h.ra[j]/v:null);
+ const frase=n?`${fmt(n)} registros = ${[0,1,2,3,4,5,6,7,8].filter(k=>rs[k]).map(k=>`${fmt(rs[k])} ${RSTP[k]}`).join(' + ')}`:'Sin registros con los filtros actuales';
+ $('view-produccion').innerHTML=head('Producción','¿Estamos vendiendo y convirtiendo? Altas (DN únicos) contra cuota, y por qué un registro no llegó a ser alta.',ac==null?null:ac/100)+
+ `<div class="etiqueta-row">${etq('Altas (DN únicos)',fmt(b.dn),'base: Altas Pospago Mensual')}${etq('Cuota',b.q?fmt(b.q):'—',b.q?'pospago del periodo':'sin cuota en el periodo')}${etq('Alcance',b.alc==null?'—':P(b.alc),b.q?`${fmt(b.aq)} de ${fmt(b.q)}`:'',ac==null?'':bc(ac))}${etq('Gap',b.q?sgn(b.gap):'—','altas menos cuota',b.q?gapColor(b.gap):'')}${etq('Promedio por vendedor',b.prs?(b.dn/b.prs).toFixed(1):'—',`${fmt(b.prs)} vendedores con alta`)}${etq('Promedio por tienda',b.tie?(b.dn/b.tie).toFixed(1):'—',`${fmt(b.tie)} tiendas con alta`)}${etq('Conversión',P(b.pconv),`${fmt(b.alta)} de ${fmt(b.n)} registros`,b.pconv==null?'':bc(b.pconv*100))}</div>`+
+ hint('Cuota: columna POSPAGO de la cuota Benber por tienda. Mayo no tiene cuota de pospago y octubre es provisional (copia de septiembre), por eso no entran al alcance. '+HNOTE)+
+ `<div class="grid g2"><div class="card"><div class="ring-title" style="margin-bottom:6px">Altas contra cuota por mes</div>${legend([['Cuota',CGEN],['Altas',CPAG]])}${groupChart(hcats(h),[{n:'Cuota',c:CGEN,v:h.cu},{n:'Altas',c:CPAG,v:h.al}])}</div>
+ <div class="card"><div class="ring-title" style="margin-bottom:6px">Conversión por mes de registro</div>${legend([['Con alta',CPAG],['Sin alta',CVEN],['% conversión','#17191D',1]])}${stackChart(hcats(h),[{n:'Con alta',c:CPAG,v:h.ra},{n:'Sin alta',c:CVEN,v:h.rg.map((v,j)=>v-h.ra[j])}],{n:'% conversión',v:conv})}</div></div>`+
+ sect('¿Por qué un registro no llegó a ser alta?')+`<div class="card"><p class="frase">${frase}</p>${hbars([0,1,2,3,4,5,6,7,8].filter(k=>rs[k]>0).map(k=>[RST[k],rs[k]]),n,[0,1,2,3,4,5,6,7,8].filter(k=>rs[k]>0).map(k=>RSTC[k]))}<p class="note" style="margin-top:10px">Causas tomadas del estatus en Registros Pospago (Telefónica) y de la vinculación. <b>No existe</b> = el DN no fue identificado en Telefónica. <b>Pendiente</b> = aún sin consulta o sin información. <b>No enrolado</b> = la línea existe pero no se vinculó.</p></div>`+
+ sect('Composición comercial: planes y método de pago')+`<div class="grid g2">${donutBox('Altas por plan',planItems(U),fmt(b.dn),'altas')}${donutBox('Altas por método de pago',formaItems(U),fmt(b.dn),'altas')}</div>`+
+ methodHist(h)+
+ sect('Producción y conversión por zona, tienda y estructura')+hint('Conversión = registros del periodo que terminaron en alta. Con periodo seleccionado, los registros se cuentan por mes de registro y las altas por mes de alta.')+tblBox('prod')+
+ sect('Registros sin alta por causa y estructura')+tblBox('regc');
+ dimTable('prod',PROD_COLS,{dim:'sup',sk:1,sd:-1},{keepQ:true});
+ dimTable('regc',CAU_COLS,{dim:'sup',sk:0,sd:-1},{filter:o=>o.reg>0})}
+/* DN únicos por mes y método de pago (histórico) */
+function methodHist(h){const pos=new Map(h.idx.map((m,j)=>[m,j])),ms=DATA.forma.map(()=>z(h.idx.length)),cur=z(DATA.forma.length);
+ UA.forEach(i=>{const j=pos.get(D[i][C.coh]);if(j!=null)ms[D[i][C.forma]][j]++});U.forEach(i=>cur[D[i][C.forma]]++);
+ const fs=DATA.forma.map((f,k)=>k).filter(k=>cur[k]||ms[k].some(x=>x));
+ return sect('DN únicos por mes y método de pago')+`<div class="tbl-wrap"><table class="dt"><thead><tr><th>Método de pago</th>${hcats(h).map(c=>`<th class="th-total">${c}</th>`).join('')}<th class="th-porta">Periodo filtrado</th></tr></thead><tbody>${fs.map(k=>`<tr><td>${DATA.forma[k]}</td>${ms[k].map(v=>`<td>${fmt(v)}</td>`).join('')}<td>${fmt(cur[k])}</td></tr>`).join('')}</tbody></table></div>`}
+
+/* ================= COBRANZA (+ facturas) ================= */
+const COB_COLS=[
+ {l:'Facturas consideradas',c:'th-total',n:o=>o.due},
+ {l:'Pagadas',c:'th-porta',n:o=>o.dp},
+ {l:'Sin pago',c:'th-red',n:o=>o.due-o.dp},
+ {l:'% Cobranza',c:'th-porta',pct:1,band:1,n:o=>fr(o.dp,o.due)},
+ {l:'DN al 100%',c:'th-porta',n:o=>o.cb[0]},
+ {l:'DN al 75–99%',c:'th-checks',n:o=>o.cb[1]},
+ {l:'DN al 50–74%',c:'th-checks',n:o=>o.cb[2]},
+ {l:'DN al 1–49%',c:'th-red',n:o=>o.cb[3]},
+ {l:'DN al 0%',c:'th-red',n:o=>o.cb[4]},
+ {l:'DN sin facturas vencidas',c:'th-pospago',n:o=>o.cb[5]}];
+function vCob(){const b=B,h=hist(),cbT=z(6);U.forEach(i=>{const s=DNS.get(i);if(!s||!s[0])cbT[5]++;else{const p=s[1]/s[0];cbT[p>=1?0:p>=.75?1:p>=.5?2:p>0?3:4]++}});
+ const cols=['#1E7A1E','#7BA82B','#D97706','#F2790A','#DC2626','#B6BCC4'];
+ $('view-cobranza').innerHTML=head('Cobranza','¿Estamos cobrando? Se mide sobre las facturas ya vencidas (N1 a N4) y las que se pagaron antes de vencer. Lo que aún no vence no se evalúa.',b.cob)+
+ `<div class="etiqueta-row">${etq('Facturas consideradas',fmt(b.due.length),'vencidas + pagadas antes de vencer')}${etq('Pagadas',fmt(b.duep.length),b.ant?`incluye ${fmt(b.ant)} pagadas antes de vencer`:'sin pagadas anticipadas','var(--green)')}${etq('Vencidas sin pago',fmt(b.due.length-b.duep.length),'','var(--red)')}${etq('% cobranza',P(b.cob),`${fmt(b.duep.length)} de ${fmt(b.due.length)}`,b.cob==null?'':bc(b.cob*100))}${etq('DN sin facturas vencidas',fmt(b.es[3]),'aún no se evalúan en cobranza','var(--gray)')}</div>
+ <div class="grid g2"><div class="card"><div class="ring-title" style="margin-bottom:10px">¿Cómo van los números? Cobranza de cada DN</div>${hbars(NB.map((l,k)=>[l,cbT[k]]),U.length,cols)}<p class="note" style="margin-top:12px">Cada DN se mide con sus facturas consideradas: pagadas entre consideradas (2 de 3 = 66.7%).</p></div>
+ <div class="card"><div class="ring-title" style="margin-bottom:6px">Cobranza por mes de alta</div>${legend([['Pagadas',CPAG],['Sin pago',CVEN],['% cobranza','#17191D',1]])}${stackChart(hcats(h),[{n:'Pagadas',c:CPAG,v:h.dp},{n:'Sin pago',c:CVEN,v:h.dd.map((v,j)=>v-h.dp[j])}],{n:'% cobranza',v:h.dd.map((v,j)=>v?100*h.dp[j]/v:null)})}</div></div>`+
+ sect('Comparativo por mes de alta')+hint(HNOTE)+`<div class="tbl-wrap"><table class="dt"><thead><tr><th>Mes de alta</th><th class="th-total">DN evaluados</th><th class="th-total">Facturas consideradas</th><th class="th-porta">Pagadas</th><th class="th-red">Sin pago</th><th>% Cobranza</th><th class="th-pospago">DN sin facturas vencidas</th></tr></thead><tbody>${h.idx.map((m,j)=>`<tr><td>${ml(m)}</td><td>${fmt(h.dnc[j])}</td><td>${fmt(h.dd[j])}</td><td>${fmt(h.dp[j])}</td><td>${fmt(h.dd[j]-h.dp[j])}</td><td>${pctCell(fr(h.dp[j],h.dd[j]))}</td><td>${fmt(h.es[j][3])}</td></tr>`).join('')}</tbody></table></div>`+
+ sect('Cobranza por zona, tienda y estructura')+tblBox('cob')+`<div id="sub-fac" class="subview"></div>`;
+ dimTable('cob',COB_COLS,{dim:'sup',sk:3,sd:1});vFacturas()}
+const GT_COLS=[
+ {l:'Altas (DN únicos)',c:'th-total',n:o=>o.dn},
+ {l:'Facturas consideradas',c:'th-total',n:o=>o.due},
+ {l:'Pagadas',c:'th-porta',n:o=>o.dp},
+ {l:'Sin pago',c:'th-red',n:o=>o.due-o.dp},
+ {l:'% Cobranza',c:'th-porta',pct:1,band:1,n:o=>fr(o.dp,o.due)},
+ {l:'DN sanos',c:'th-porta',n:o=>o.es[0]},
+ {l:'DN con pendiente',c:'th-checks',n:o=>o.es[1]},
+ {l:'DN críticos',c:'th-red',n:o=>o.es[2]},
+ {l:'% DN sanos',c:'th-porta',pct:1,band:1,n:o=>fr(o.es[0],o.es[0]+o.es[1]+o.es[2])}];
+const gtbl=(rows,lab)=>`<div class="tbl-wrap"><table class="dt"><thead><tr><th>${lab}</th>${GT_COLS.map(c=>`<th class="${c.c||''}">${c.l}</th>`).join('')}</tr></thead><tbody>${rows.map(o=>`<tr><td>${o.name}</td>${GT_COLS.map(c=>`<td>${cellTxt(c,o)}</td>`).join('')}</tr>`).join('')||'<tr><td colspan="10" class="empty">Sin datos.</td></tr>'}</tbody></table></div>`;
+function vFacturas(){const NN=['Primera','Segunda','Tercera','Cuarta'],gen=FI.filter(x=>x[1]<3),cn=(c,n)=>FI.filter(x=>x[2]===n+1&&x[1]===c).length,byN=NN.map((_,n)=>[cn(0,n),cn(1,n),cn(2,n),cn(3,n)]);
+ const mk=ix=>{const nm=ix===C.forma?DATA.forma:DATA.plan;return [...agg(ix).values()].filter(o=>o.dn>0).map(o=>(o.name=nm[o.k],o)).sort((a,b)=>b.dn-a.dn)};
+ const fm=mk(C.forma),pl=mk(C.plan).slice(0,10);
+ const card=fm.filter(o=>/Tarjeta/.test(o.name)),efe=fm.filter(o=>o.name==='Efectivo'),ct=tot(card),et=tot(efe);
+ const cb=o=>fr(o.dp,o.due),sn=o=>fr(o.es[0],o.es[0]+o.es[1]+o.es[2]);
+ let com='Sin datos suficientes de tarjeta en esta selección.';
+ if(ct.due>0&&et.due>0){const d=(cb(ct)-cb(et))*100,ds=(sn(ct)-sn(et))*100;com=`Con tarjeta (${fmt(ct.dn)} DN) la cobranza es <b>${P(cb(ct))}</b> contra <b>${P(cb(et))}</b> en efectivo (${fmt(et.dn)} DN): ${d>=0?'<b>'+d.toFixed(1)+' pp a favor de tarjeta</b>':'<b>'+Math.abs(d).toFixed(1)+' pp a favor de efectivo</b>'}. Números sanos: ${P(sn(ct))} con tarjeta vs ${P(sn(et))} en efectivo. ${ct.dn<100?`Ojo: solo ${fmt(ct.dn)} DN pagan con tarjeta, la muestra es chica y puede moverse mucho.`:''}`}
+ $('sub-fac').innerHTML=head('Facturas por número, método de pago y plan','Pagadas y no pagadas por número de factura, método de pago y tipo de plan. Solo cuentan las primeras cuatro.',B.cob)+
+ `<div class="grid g2"><div class="card"><div class="ring-title" style="margin-bottom:6px">Situación por número de factura</div>${legend([['Pagadas',CPAG],['Vencidas no pagadas',CVEN],['Vigentes no pagadas',CVIG],['No generadas (est.)',CGEN],['% pagadas','#17191D',1]])}${stackChart(NN,[{n:'Pagadas',c:CPAG,v:byN.map(a=>a[0])},{n:'Vencidas no pagadas',c:CVEN,v:byN.map(a=>a[1])},{n:'Vigentes no pagadas',c:CVIG,v:byN.map(a=>a[2])},{n:'No generadas (est.)',c:CGEN,v:byN.map(a=>a[3])}],{n:'% pagadas',v:byN.map(a=>{const g=a[0]+a[1]+a[2];return g?100*a[0]/g:null})})}</div>
+ <div class="tbl-wrap"><table class="dt"><thead><tr><th># Factura</th><th class="th-total">Generadas</th><th class="th-porta">Pagadas</th><th class="th-red">Vencidas sin pago</th><th class="th-checks">Vigentes</th><th class="th-pospago">No generadas</th><th>% Cobranza</th></tr></thead><tbody>${byN.map((a,n)=>{const dd=FI.filter(x=>x[2]===n+1&&x[1]<3&&x[6]),dp=dd.filter(x=>x[1]===0).length;return `<tr><td>${NN[n]}</td><td>${fmt(a[0]+a[1]+a[2])}</td><td>${fmt(a[0])}</td><td>${fmt(a[1])}</td><td>${fmt(a[2])}</td><td>${fmt(a[3])}</td><td>${pctCell(fr(dp,dd.length))}</td></tr>`}).join('')}</tbody></table></div></div>`+
+ sect('Cobranza por método de pago')+`<div class="card" style="margin-bottom:12px"><p class="frase" style="font-size:13px">${com}</p></div>`+gtbl(fm,'Método de pago')+
+ sect('Cobranza por tipo de plan')+gtbl(pl,'Plan')}
+
+/* ================= MOROSIDAD ================= */
+const MOR_COLS=[
+ {l:'DN con atraso',c:'th-red',n:o=>o.es[1]+o.es[2]},
+ {l:'Facturas vencidas sin pago',c:'th-red',n:o=>o.ven},
+ ...MB.map((b,k)=>({l:b[0].replace('Más de 60 días','+60 días'),c:k>2?'th-red':'th-checks',n:o=>o.mo[k]})),
+ {l:'Atraso promedio (días)',c:'th-pospago',dec:0,n:o=>o.atN?o.atS/o.atN:-1}];
+function vMor(){const ven=FI.filter(x=>x[1]===1),bk=MB.map(([l,a,c])=>ven.filter(x=>x[5]>=a&&x[5]<=c)),dnT=B.es[1]+B.es[2],prom=ven.length?sum(ven,x=>x[5])/ven.length:0,m30=bk[3].length+bk[4].length;
+ const cols=['#D97706','#F2790A','#E0501A','#DC2626','#9B1C1C'];
+ $('view-morosidad').innerHTML=head('Morosidad','¿Qué facturas llevan atraso? Facturas vencidas sin pago según los días transcurridos desde su vencimiento al corte.',B.cob)+
+ `<div class="etiqueta-row">${etq('DN con atraso',fmt(dnT),P(fr(dnT,B.dn))+' de los pospagos','var(--red)')}${etq('Facturas vencidas sin pago',fmt(ven.length),`${fmt(B.due.length)} consideradas en cobranza`,'var(--red)')}${etq('Atraso promedio',fmt(prom)+' días','de las facturas vencidas sin pago')}${etq('Más de 30 días',fmt(m30),P(fr(m30,ven.length))+' de las vencidas sin pago','var(--red)')}</div>
+ <div class="card"><div class="ring-title" style="margin-bottom:10px">Facturas vencidas por días de atraso</div>${hbars(MB.map((b,k)=>[b[0],bk[k].length]),ven.length,cols)}</div>`+
+ sect('Morosidad por zona, tienda y estructura')+tblBox('mor');
+ dimTable('mor',MOR_COLS,{dim:'sup',sk:1,sd:-1})}
+
+/* ================= ESTADO DE LOS NÚMEROS (+ bajas y riesgo) ================= */
+const EST_COLS=[
+ {l:'DN con factura vencida',c:'th-total',n:o=>o.es[0]+o.es[1]+o.es[2]},
+ {l:'Sanos',c:'th-porta',n:o=>o.es[0]},
+ {l:'Con pendiente',c:'th-checks',n:o=>o.es[1]},
+ {l:'Críticos',c:'th-red',n:o=>o.es[2]},
+ {l:'Sin vencidas aún',c:'th-pospago',n:o=>o.es[3]}];
+function vEstado(){const e=B.es,base=e[0]+e[1]+e[2],pS=B.psan,h=hist();
+ $('view-estado').innerHTML=head('Estado de los números','¿Qué tan sanos están los pospagos? Sano: todas sus facturas consideradas están pagadas. Con pendiente: una vencida sin pagar. Crítico: dos o más.',pS==null?null:pS)+
+ `<div class="etiqueta-row">${etq('Números sanos',fmt(e[0]),P(fr(e[0],base))+' de los que ya tienen vencidas','var(--green)')}${etq('Con pendiente',fmt(e[1]),P(fr(e[1],base)),'var(--amber)')}${etq('Críticos',fmt(e[2]),P(fr(e[2],base)),'var(--red)')}${etq('Sin vencidas aún',fmt(e[3]),P(fr(e[3],B.dn))+' de los pospagos · aún no se evalúan','var(--gray)')}</div>
+ <div class="grid g2"><div class="card"><div class="ring-title" style="margin-bottom:10px">Números del periodo</div>${hbars([['Sanos',e[0]],['Con pendiente',e[1]],['Críticos',e[2]],['Sin vencidas aún',e[3]]],B.dn,['#1E7A1E','#D97706','#DC2626','#B6BCC4'])}</div>
+ <div class="tbl-wrap"><table class="dt"><thead><tr><th>Mes de alta</th><th class="th-total">DN evaluados</th><th class="th-porta">Sanos</th><th class="th-checks">Con pendiente</th><th class="th-red">Críticos</th><th class="th-pospago">Sin vencidas aún</th><th>% Sanos</th></tr></thead><tbody>${h.idx.map((m,j)=>{const x=h.es[j],ev=x[0]+x[1]+x[2];return `<tr><td>${ml(m)}</td><td>${fmt(ev)}</td><td>${fmt(x[0])}</td><td>${fmt(x[1])}</td><td>${fmt(x[2])}</td><td>${fmt(x[3])}</td><td>${pctCell(fr(x[0],ev))}</td></tr>`}).join('')}</tbody></table></div></div>`+
+ hint(HNOTE)+sect('Estado de los números por zona, tienda y estructura')+tblBox('est')+`<div id="sub-baj" class="subview"></div>`;
+ dimTable('est',EST_COLS,{dim:'sup',sk:1,sd:1});vBajas()}
+const BAJ_COLS=[
+ {l:'Pospagos',c:'th-total',n:o=>o.dn},
+ {l:'Bajas',c:'th-red',n:o=>o.baja},
+ {l:'% Bajas',c:'th-red',pct:1,n:o=>fr(o.baja,o.dn)},
+ {l:'Predesactivados / desactivados',c:'th-checks',n:o=>o.pdes},
+ {l:'% Predesactivados',c:'th-checks',pct:1,n:o=>fr(o.pdes,o.dn)},
+ {l:'Con adeudo',c:'th-red',n:o=>o.bAd},
+ {l:'Sin adeudo',c:'th-porta',n:o=>o.bSin},
+ {l:'% Con adeudo',c:'th-red',pct:1,n:o=>fr(o.bAd,o.baja+o.pdes)},
+ {l:'Días activa (promedio)',c:'th-pospago',dec:0,n:o=>o.durN?o.durS/o.durN:-1}];
+function vBajas(){const bj=U.filter(i=>CANC(D[i][C.lin])),ba=bj.filter(i=>D[i][C.lin]===3),pd=bj.filter(i=>D[i][C.lin]!==3),ad=bj.filter(i=>D[i][C.fven]>0),exp=bj.filter(i=>D[i][C.expo]);
+ const pb=fr(bj.length,U.length),nm=M.length,mb=[Array(nm).fill(0),Array(nm).fill(0)];bj.forEach(i=>{const m=D[i][C.mbaja];if(m>=0)mb[D[i][C.fven]>0?0:1][m]++});const bidx=M.map((_,i)=>i).filter(i=>mb[0][i]+mb[1][i]>0);
+ const bins=[['Menos de 30 días',0,30],['30 a 44 días',30,45],['45 a 59 días',45,60],['60 a 89 días',60,90],['90 días o más',90,9999]],dur=bj.filter(i=>D[i][C.dact]>=0),bn=bins.map(([l,a,b])=>[l,dur.filter(i=>D[i][C.dact]>=a&&D[i][C.dact]<b).length]);
+ const rc=HM.map(m=>{const a=UA.filter(i=>D[i][C.coh]===m),x=a.filter(i=>D[i][C.lin]===3).length,y=a.filter(i=>D[i][C.lin]===4||D[i][C.lin]===5).length;return `<tr><td>${ml(m)}</td><td>${fmt(a.length)}</td><td>${fmt(x)}</td><td>${fmt(y)}</td><td>${fmt(a.length-x-y)}</td><td>${pctCell(a.length?1-(x+y)/a.length:null)}</td></tr>`}).join('');
+ $('sub-baj').innerHTML=head('Bajas, exportados y riesgo','Pospagos que ya son baja, predesactivados o desactivados: si quedaron con adeudo, cuánto duraron activos y en qué mes ocurrió.',pb==null?null:1-pb*2)+
+ `<div class="etiqueta-row">${etq('Pospagos',fmt(U.length),'alta confirmada')}${etq('Bajas',fmt(ba.length),P(fr(ba.length,U.length)),'var(--red)')}${etq('Predesactivados / desactivados',fmt(pd.length),P(fr(pd.length,U.length))+` · ${fmt(exp.length)} exportados`,'var(--orange-n)')}${etq('Con adeudo vencido',fmt(ad.length),P(fr(ad.length,bj.length))+' de las bajas y predesactivados','var(--red)')}${etq('Sin adeudo',fmt(bj.length-ad.length),P(fr(bj.length-ad.length,bj.length)),'var(--green)')}${etq('Días activos (promedio)',dur.length?fmt(sum(dur,i=>D[i][C.dact])/dur.length):'—','desde el alta hasta la baja')}</div>
+ <div class="grid g2"><div class="card"><div class="ring-title" style="margin-bottom:6px">Bajas y predesactivados por mes en que ocurrieron</div>${legend([['Con adeudo',CVEN],['Sin adeudo',CPAG]])}${bidx.length?stackChart(bidx.map(ml),[{n:'Con adeudo',c:CVEN,v:bidx.map(i=>mb[0][i])},{n:'Sin adeudo',c:CPAG,v:bidx.map(i=>mb[1][i])}],null):'<p class="note">Sin registros en la selección.</p>'}</div>
+ <div class="card"><div class="ring-title" style="margin-bottom:10px">¿Cuánto duraron activos?</div>${hbars(bn,dur.length,['#DC2626','#F2790A','#D97706','#8B939E','#3B4048'])}</div></div>`+
+ sect('Por periodo de alta')+`<div class="tbl-wrap"><table class="dt"><thead><tr><th>Periodo de alta</th><th class="th-total">Pospagos</th><th class="th-red">Bajas</th><th class="th-checks">Predesactivados</th><th class="th-porta">Siguen vigentes</th><th>% Vigentes</th></tr></thead><tbody>${rc}</tbody></table></div>`+
+ sect('Bajas y predesactivados por zona, tienda y estructura')+tblBox('baj');dimTable('baj',BAJ_COLS,{dim:'sup',sk:1,sd:-1})}
+
+/* ================= COMISIÓN DEL VENDEDOR ================= */
+const COM_COLS=[
+ {l:'Altas (DN)',c:'th-total',n:o=>o.dn},
+ {l:'Generado',c:'th-porta',money:1,n:cGen},
+ {l:'Recuperable',c:'th-red',money:1,n:cRec},
+ {l:'Pendiente',c:'th-checks',money:1,n:cPen},
+ {l:'Perdida',c:'th-pospago',money:1,n:cPer},
+ {l:'Potencial ($212 por DN)',c:'th-total',money:1,n:cPot},
+ {l:'% Generado',c:'th-porta',pct:1,n:o=>fr(cGen(o),cPot(o))},
+ {l:'% Perdida',c:'th-red',pct:1,n:o=>fr(cPer(o),cPot(o))}];
+function vComision(){const t=B.ct,gen=cGen(t),rec=cRec(t),pen=cPen(t),per=cPer(t),pot=cPot(t),h=hist();
+ const hm=agg(C.coh,FA,FIA,[],DNSA),hv=HM.map(m=>hm.get(m)||blank(m));
+ const byN=['N1 · $'+RATE[0],'N2 · $'+RATE[1],'N3 · $'+RATE[2]],mm=a=>[0,1,2].map(n=>a[n]*RATE[n]);
+ $('view-comision').innerHTML=head('Comisión del vendedor','¿Estamos perdiendo dinero? Cada pospago paga por sus primeras tres facturas pagadas: N1 $45, N2 $78 y N3 $89, hasta $212. No hay pago por el alta.',B.cob)+
+ `<div class="etiqueta-row">${etq('Generado',money(gen),`${fmt(sm(t.cg))} facturas pagadas`,'var(--green)')}${etq('Recuperable',money(rec),`${fmt(sm(t.cr))} facturas vencidas sin pago, línea activa`,'var(--red)')}${etq('Pendiente',money(pen),`${fmt(sm(t.cp))} facturas por vencer o por generar`,'var(--amber)')}${etq('Perdida',money(per),`${fmt(sm(t.cx))} facturas de líneas en baja, exportadas o predesactivadas`,'var(--gray)')}${etq('Potencial',money(pot),`${fmt(B.dn)} DN × $${RMAX}`)}</div>
+ <div class="card defs"><div class="ring-title" style="margin-bottom:8px">Cómo se clasifica cada factura (N1 a N3)</div><div class="defs-g"><div><span class="status-pill g">Generado</span><p>Factura pagada.</p></div><div><span class="status-pill rd">Recuperable</span><p>Vencida sin pago en una línea que sigue viva: todavía se puede cobrar.</p></div><div><span class="status-pill a">Pendiente</span><p>Aún no vence o aún no se genera, en una línea viva.</p></div><div><span class="status-pill n">Perdida</span><p>La línea ya es baja, exportada o predesactivada y la factura no se pagó.</p></div></div></div>
+ <div class="grid g2"><div class="card"><div class="ring-title" style="margin-bottom:6px">Por factura (N1 a N3)</div>${legend([['Generado',CPAG],['Pendiente',CVIG],['Recuperable',CVEN],['Perdida',CGEN]])}${stackChart(byN,[{n:'Generado',c:CPAG,v:mm(t.cg)},{n:'Pendiente',c:CVIG,v:mm(t.cp)},{n:'Recuperable',c:CVEN,v:mm(t.cr)},{n:'Perdida',c:CGEN,v:mm(t.cx)}],null)}</div>
+ <div class="card"><div class="ring-title" style="margin-bottom:6px">Por mes de alta</div>${legend([['Generado',CPAG],['Pendiente',CVIG],['Recuperable',CVEN],['Perdida',CGEN],['% generado del potencial','#17191D',1]])}${stackChart(hcats(h),[{n:'Generado',c:CPAG,v:hv.map(cGen)},{n:'Pendiente',c:CVIG,v:hv.map(cPen)},{n:'Recuperable',c:CVEN,v:hv.map(cRec)},{n:'Perdida',c:CGEN,v:hv.map(cPer)}],{n:'% generado del potencial',v:hv.map(o=>o.dn?100*cGen(o)/cPot(o):null)})}<p class="note" style="margin-top:6px">${HNOTE}</p></div></div>`+
+ sect('Comisión por zona, tienda, vendedor y estructura')+hint('Cambia "Ver por" a Promotor para ver la comisión de cada vendedor.')+tblBox('com');dimTable('com',COM_COLS,{dim:'sup',sk:3,sd:-1})}
+const sm=a=>a.reduce((s,x)=>s+x,0);
+
+/* ================= DIRECCIÓN ================= */
+const DIRST={dim:'sup',ind:'cob'};
+const evalN=o=>o.es[0]+o.es[1]+o.es[2];
+const RK=[
+ {k:'alc',l:'Alcance',hi:1,v:o=>o.q?o.aq/o.q:null,vol:o=>o.q,mn:T=>Math.max(10,T.q*.015),f:P,sub:o=>`${fmt(o.aq)} altas de ${fmt(o.q)} de cuota`},
+ {k:'conv',l:'Conversión',hi:1,v:o=>fr(o.altaR,o.reg),vol:o=>o.reg,mn:T=>Math.max(10,T.reg*.015),f:P,sub:o=>`${fmt(o.altaR)} altas de ${fmt(o.reg)} registros`},
+ {k:'cob',l:'Cobranza',hi:1,v:o=>fr(o.dp,o.due),vol:o=>o.due,mn:T=>Math.max(15,T.due*.01),f:P,sub:o=>`${fmt(o.dp)} pagadas de ${fmt(o.due)} consideradas`},
+ {k:'san',l:'Números sanos',hi:1,v:o=>fr(o.es[0],evalN(o)),vol:evalN,mn:T=>Math.max(10,evalN(T)*.015),f:P,sub:o=>`${fmt(o.es[0])} sanos de ${fmt(evalN(o))} evaluados`},
+ {k:'cgen',l:'Comisión generada',hi:1,v:o=>o.dn?cGen(o):null,vol:o=>o.dn,mn:T=>Math.max(5,T.dn*.01),f:money,sub:o=>`${fmt(o.dn)} altas · ${P(fr(cGen(o),cPot(o)))} del potencial`},
+ {k:'crec',l:'Comisión recuperable',hi:0,v:o=>o.dn?cRec(o):null,vol:o=>o.dn,mn:T=>Math.max(5,T.dn*.01),f:money,sub:o=>`${fmt(sm(o.cr))} facturas vencidas · en riesgo ${money(o.risk)}`},
+ {k:'mor',l:'Morosidad',hi:0,v:o=>fr(o.due-o.dp,o.due),vol:o=>o.due,mn:T=>Math.max(15,T.due*.01),f:P,sub:o=>`${fmt(o.due-o.dp)} sin pago de ${fmt(o.due)} · ${o.atN?fmt(o.atS/o.atN):'—'} días promedio`},
+ {k:'crit',l:'DN críticos',hi:0,v:o=>o.dn?o.es[2]:null,vol:o=>o.dn,mn:T=>Math.max(5,T.dn*.01),f:fmt,sub:o=>`${P(fr(o.es[2],evalN(o)))} de ${fmt(evalN(o))} evaluados`}];
+function rankData(){const dim=DIMS.find(d=>d.k===DIRST.dim),rows=[...agg(dim.ix).values()].map(o=>(o.name=dim.n[o.k],o)),T0=tot(rows),ind=RK.find(r=>r.k===DIRST.ind);
+ const ok=rows.filter(o=>{const v=ind.v(o);return v!=null&&ind.vol(o)>=ind.mn(T0)}).sort((a,b)=>ind.hi?ind.v(b)-ind.v(a):ind.v(a)-ind.v(b));
+ return {dim,ind,ok,T0,rows}}
+function rkRow(o,j,ind,good){return `<div class="rk-row"><span class="rk-n ${good?'g':'r'}">${j+1}</span><div class="rk-m"><b title="${o.name}">${o.name}</b><small>${ind.sub(o)}</small></div><span class="rk-v ${good?'g':'r'}">${ind.f(ind.v(o))}</span></div>`}
+function dirRank(){const {dim,ind,ok}=rankData(),k=Math.min(8,Math.max(1,Math.floor(ok.length/2))),best=ok.slice(0,k),worst=ok.slice(-k).reverse();
+ $('dir-rank').innerHTML=`<div class="grid g2"><div class="card"><div class="ring-title" style="margin-bottom:8px"><span class="status-pill g">Mejores</span> ${ind.l} por ${dim.l.toLowerCase()}</div>${best.length?best.map((o,j)=>rkRow(o,j,ind,true)).join(''):'<p class="note">Sin grupos con volumen suficiente.</p>'}</div>
+ <div class="card"><div class="ring-title" style="margin-bottom:8px"><span class="status-pill rd">A atender</span> ${ind.l} por ${dim.l.toLowerCase()}</div>${worst.length?worst.map((o,j)=>rkRow(o,j,ind,false)).join(''):'<p class="note">Sin grupos con volumen suficiente.</p>'}</div></div><p class="note">${ind.hi?'Más alto es mejor.':'Más bajo es mejor.'} Solo entran grupos con volumen suficiente para no distorsionar el ranking (${ok.length} de ${fmt(rankData().rows.length)}).</p>`}
+function vDir(){const b=B,ct=b.ct,ac=b.alc==null?null:b.alc*100;
+ let d1=0,d2=0,d3=0,d30=0;U.forEach(i=>{const s=DNS.get(i);if(!s||!s[2])return;if(s[2]===1)d1++;else if(s[2]===2)d2++;else d3++;if(s[3]>30)d30++});
+ const bjA=U.filter(i=>CANC(D[i][C.lin])&&D[i][C.fven]>0).length;
+ const sup=[...agg(C.sup).values()].map(o=>(o.name=DATA.sup[o.k],o)).filter(o=>o.dn>0&&o.risk+cRec(o)>0).sort((a,c)=>cRec(c)-cRec(a)).slice(0,5);
+ $('view-direccion').innerHTML=head('Dirección','Modo ejecutivo: qué está pasando y dónde actuar primero. Sigue los filtros de estructura y periodo.',b.cob)+
+ sect('¿Qué está pasando?')+`<div class="grid g4 stagger">${ring('¿Estamos vendiendo?',ac,b.alc==null?'—':P(b.alc),'alcance',[`Altas <b>${fmt(b.aq)}</b> de <b>${fmt(b.q)}</b> de cuota`,b.q?`Gap <b>${sgn(b.gap)}</b>`:'Sin cuota cargada'])}
+ ${ring('¿Estamos convirtiendo?',b.pconv==null?null:b.pconv*100,P(b.pconv),'conversión',[`Altas <b>${fmt(b.alta)}</b> de <b>${fmt(b.n)}</b> registros`,`Sin alta <b>${fmt(b.n-b.alta)}</b>`])}
+ ${ring('¿Estamos cobrando?',b.cob==null?null:b.cob*100,P(b.cob),'cobranza',[`Pagadas <b>${fmt(b.duep.length)}</b> de <b>${fmt(b.due.length)}</b>`,`Sin pago <b>${fmt(b.due.length-b.duep.length)}</b>`])}
+ ${ring('Salud de la cartera',b.psan==null?null:b.psan*100,P(b.psan),'números sanos',[`Sanos <b>${fmt(b.es[0])}</b> de <b>${fmt(b.es[0]+b.es[1]+b.es[2])}</b>`,`Críticos <b>${fmt(b.es[2])}</b>`])}</div>`+
+ sect('Hallazgos automáticos')+`<div class="etiqueta-row">${etq('DN con 1 factura vencida',fmt(d1),'sin pagar','var(--amber)')}${etq('DN con 2 facturas vencidas',fmt(d2),'sin pagar','var(--orange-n)')}${etq('DN con 3 o más',fmt(d3),'facturas vencidas sin pagar','var(--red)')}${etq('Atraso de más de 30 días',fmt(d30),'DN con la factura más vieja pasada de 30 días','var(--red)')}${etq('Bajas con adeudo',fmt(bjA),'bajas y predesactivados que quedaron debiendo','var(--red)')}${etq('Sin factura generada',fmt(b.sinF.length),P(fr(b.sinF.length,b.dn))+' de los pospagos','var(--gray)')}</div>`+
+ sect('¿Estamos perdiendo dinero? Riesgo de comisión')+`<div class="etiqueta-row">${etq('Comisión generada',money(cGen(ct)),'facturas ya pagadas','var(--green)')}${etq('Recuperable',money(cRec(ct)),'vencida sin pago en líneas vivas','var(--red)')}${etq('En riesgo',money(ct.risk),'recuperable de DN críticos (2 o más vencidas)','var(--orange-n)')}${etq('Perdida',money(cPer(ct)),'líneas ya en baja, exportadas o predesactivadas','var(--gray)')}</div>
+ <div class="card"><div class="ring-title" style="margin-bottom:8px">Supervisores con mayor pérdida potencial</div>${sup.length?sup.map((o,j)=>`<div class="rk-row"><span class="rk-n r">${j+1}</span><div class="rk-m"><b title="${o.name}">${o.name}</b><small>${fmt(o.dn)} altas · ${fmt(sm(o.cr))} facturas vencidas · ${fmt(o.es[2])} DN críticos</small></div><span class="rk-v r">${money(cRec(o))}<small>en riesgo ${money(o.risk)}</small></span></div>`).join(''):'<p class="note">Sin comisión recuperable en esta selección.</p>'}</div>`+
+ sect('¿Dónde actuar primero?')+`<div class="tools"><label>Indicador <select id="rk_ind">${RK.map(r=>`<option value="${r.k}"${r.k===DIRST.ind?' selected':''}>${r.l}</option>`).join('')}</select></label><label>Ver por <select id="rk_dim">${DIMS.map(d=>`<option value="${d.k}"${d.k===DIRST.dim?' selected':''}>${d.l}</option>`).join('')}</select></label><button class="btn" id="rk_csv">Exportar CSV</button></div><div id="dir-rank"></div>`;
+ $('rk_ind').onchange=e=>{DIRST.ind=e.target.value;dirRank()};$('rk_dim').onchange=e=>{DIRST.dim=e.target.value;dirRank()};
+ $('rk_csv').onclick=()=>{const {dim,ind,ok}=rankData();exportCsv('centro-mando-ranking-'+ind.k,[dim.l,ind.l,'Detalle'],ok.map(o=>[o.name,ind.k==='cgen'||ind.k==='crec'||ind.k==='crit'?Math.round(ind.v(o)):(100*ind.v(o)).toFixed(1),ind.sub(o)]))};
+ dirRank()}
+
+/* ================= DETALLE POR DN ================= */
+const DF={q:'',est:'',n:'',forma:'',lin:'',plan:'',sk:'venc',sd:1,lim:300};
+const ESTL=['Pagada','Vencida no pagada','Vigente no pagada'],LINL=['—','Activa','Suspendida','Baja','Predesactivada','Desactivada'];
+const CSTL=['Generada','Recuperable','Pendiente','Perdida'],CSTC=['p','v','g','x'];
+const comS=(i,n,c)=>c===0?0:CANCD(D[i])?3:c===1?1:2;
+const comPill=t=>{const n=t[1];if(n>3)return '<span class="muted">N4 no paga</span>';const s=comS(t[0],n,t[2]);return `<span class="pill-est ${CSTC[s]}">${CSTL[s]} · $${RATE[n-1]}</span>`};
+const comTxt=t=>t[1]>3?'N4 no paga':`${CSTL[comS(t[0],t[1],t[2])]} $${RATE[t[1]-1]}`;
+const dq=t=>DATA.prom[D[t[0]][C.prom]];
+function vDetalle(){$('view-detalle').innerHTML=head('Detalle por DN','Una fila por factura de los pospagos filtrados, con el usuario y el promotor que hizo el alta. Los DN se muestran con dos dígitos censurados; para buscar escribe el DN (completo o sus últimos dígitos), el usuario o el nombre del promotor.',B.cob)+
+ `<div class="tools"><label>Buscar <input type="search" id="dq" placeholder="DN, usuario o promotor" value="${DF.q}" autocomplete="off"></label>
+ <label>Pago <select id="d_est"><option value="">Todas</option><option value="0">Pagada</option><option value="np">No pagada (vencida o vigente)</option><option value="1">Vencida no pagada</option><option value="2">Vigente no pagada</option></select></label>
+ <label>Factura <select id="d_n"><option value="">Todas</option><option>1</option><option>2</option><option>3</option><option>4</option></select></label>
+ <label>Método de pago <select id="d_forma"><option value="">Todos</option>${DATA.forma.map((f,i)=>`<option value="${i}">${f}</option>`).join('')}</select></label>
+ <label>Línea <select id="d_lin"><option value="">Todas</option><option value="act">Activa (activa o suspendida)</option><option value="1">Activa</option><option value="2">Suspendida</option><option value="3">Baja</option><option value="pd">Predesactivada o desactivada</option></select></label>
+ <label>Plan <select id="d_plan"><option value="">Todos</option>${DATA.plan.map((f,i)=>`<option value="${i}">${f}</option>`).join('')}</select></label>
+ <button class="btn" id="cp_det">Exportar CSV</button><span id="d_n_txt"></span></div><div id="ficha"></div><div class="tbl-wrap" style="max-height:680px;overflow:auto"><table class="dt" id="dt"></table></div><div class="tblnote" id="dmore"></div>`;
+ ['est','n','forma','lin','plan'].forEach(k=>{const e=$('d_'+k);e.value=DF[k];e.onchange=()=>{DF[k]=e.value;DF.lim=300;detTable()}});
+ $('dq').oninput=e=>{DF.q=e.target.value;DF.lim=300;detTable()};$('cp_det').onclick=()=>{const r=detRows();exportCsv('centro-mando-detalle-dn',DCOLS.map(c=>c[1]),r.map(detCsvRow))};detTable()}
+function detRows(){const qs=DF.q.trim().toLowerCase(),dg=DF.q.replace(/\D/g,''),qq=dg.length===10?dg.slice(0,4)+dg.slice(6):dg,byDn=qq.length>=4&&!/[a-z]/i.test(qs);
+ let rows=T.filter(t=>{if(!FS.has(t[0]))return false;const r=D[t[0]];
+  if(qs){if(byDn){if(!r[C.dnv].includes(qq))return false}else if(!(String(r[C.usr]).toLowerCase().includes(qs)||dq(t).toLowerCase().includes(qs)))return false}
+  if(DF.est==='np'){if(t[2]===0)return false}else if(DF.est!==''&&t[2]!==+DF.est)return false;
+  if(DF.n&&t[1]!==+DF.n)return false;if(DF.forma!==''&&t[10]!==+DF.forma)return false;if(DF.plan!==''&&r[C.plan]!==+DF.plan)return false;
+  if(DF.lin==='act'){if(r[C.lin]!==1&&r[C.lin]!==2)return false}else if(DF.lin==='pd'){if(r[C.lin]!==4&&r[C.lin]!==5)return false}else if(DF.lin!==''&&r[C.lin]!==+DF.lin)return false;return true});
+ const kf={dn:t=>D[t[0]][C.dn],usr:t=>D[t[0]][C.usr],prom:dq,n:t=>t[1],est:t=>t[2],com:t=>t[1]>3?9:comS(t[0],t[1],t[2]),venc:t=>t[5]||'9',emi:t=>t[4],pago:t=>t[6]||'',monto:t=>t[8],saldo:t=>t[9],tienda:t=>DATA.pdv[D[t[0]][C.pdv]],sup:t=>DATA.sup[D[t[0]][C.sup]],ger:t=>DATA.ger[D[t[0]][C.ger]],reg:t=>DATA.reg[D[t[0]][C.reg]],sub:t=>DATA.sub[D[t[0]][C.sub]],folio:t=>t[11],forma:t=>DATA.forma[t[10]]||'',plan:t=>DATA.plan[D[t[0]][C.plan]],ciclo:t=>DATA.ciclos[t[7]]||'',idpdv:t=>D[t[0]][C.idpdv],lin:t=>D[t[0]][C.lin]}[DF.sk]||(t=>t[5]);
+ rows.sort((a,b)=>{const x=kf(a),y=kf(b);return DF.sd*(typeof x==='number'?x-y:String(x).localeCompare(String(y)))});return rows}
+const DCOLS=[['dn','DN'],['usr','Usuario'],['prom','Nombre del promotor'],['n','# Factura'],['folio','Folio'],['est','Pago'],['com','Comisión vendedor'],['lin','Línea'],['emi','Emisión'],['ciclo','Ciclo'],['venc','Vencimiento'],['pago','Fecha de pago'],['monto','Monto a pagar'],['saldo','Saldo pendiente'],['forma','Método de pago'],['plan','Plan'],['idpdv','ID PDV'],['tienda','Tienda'],['sup','Supervisor'],['ger','Gerente / Líder'],['sub','Subdirección'],['reg','Región']];
+const detCsvRow=t=>{const r=D[t[0]];return [r[C.dn],r[C.usr],dq(t),t[1],t[11],ESTL[t[2]],comTxt(t),LINL[r[C.lin]],t[4],DATA.ciclos[t[7]]||'',t[5],t[6],t[2]===0?'':t[8],t[9],DATA.forma[t[10]]||'',DATA.plan[r[C.plan]],r[C.idpdv],DATA.pdv[r[C.pdv]],DATA.sup[r[C.sup]],DATA.ger[r[C.ger]],DATA.sub[r[C.sub]],DATA.reg[r[C.reg]]]};
+function fichaDN(rows){const box=$('ficha');const ds=[...new Set(rows.map(t=>t[0]))];if(ds.length!==1||DF.q.replace(/\D/g,'').length<6){box.innerHTML='';return}
+ const i=ds[0],r=D[i],s=DNS.get(i),all=[],st=['Pagada','Vencida','Vigente','No generada'],pl=['p','v','g','g'];
+ for(let n=1;n<=4;n++){const t=T.find(x=>x[0]===i&&x[1]===n),g=I.find(x=>x[0]===i&&x[2]===n&&x[1]===3);all.push(t?[n,t[2],t[5],t[8],t[9],t]:g?[n,3,'','','',[i,n,3]]:[n,-1,'','','',null])}
+ const p=s&&s[0]?s[1]/s[0]:null,col=p==null?'#B6BCC4':bc(p*100);
+ box.innerHTML=`<div class="card ficha"><div><div class="ring-title" style="margin-bottom:4px"><img src="${mImg(p==null?null:p*100,'mini')}" alt="">Ficha del DN</div><div class="masked" style="font-size:18px;font-weight:800">${r[C.dn]}</div><div class="note">${DATA.plan[r[C.plan]]} · ${DATA.forma[r[C.forma]]} · línea ${LINL[r[C.lin]]}</div><div class="note"><b>${r[C.usr]}</b> · ${DATA.prom[r[C.prom]]}</div><div style="font-size:26px;font-weight:800;color:${col}">${p==null?'Sin facturas vencidas':P(p)}</div><div class="bar"><i style="width:${p==null?0:p*100}%;background:${col}"></i></div><div class="note">${s&&s[0]?`${s[1]} de ${s[0]} facturas consideradas pagadas`:'Aún no tiene facturas vencidas'}</div></div>
+ <div class="tbl-wrap"><table class="dt"><thead><tr><th>Factura</th><th>Estado</th><th>Comisión vendedor</th><th>Vencimiento</th><th>Monto a pagar</th><th>Saldo pendiente</th></tr></thead><tbody>${all.map(a=>`<tr><td>N${a[0]}</td><td>${a[1]<0?'—':`<span class="pill-est ${pl[a[1]]}">${st[a[1]]}</span>`}</td><td>${a[5]?comPill([i,a[0],a[1]]):a[0]<=3?comPill([i,a[0],3]):'<span class="muted">N4 no paga</span>'}</td><td>${a[2]||'—'}</td><td>${a[3]===''||a[1]===0?'—':'$'+a[3].toLocaleString('es-MX')}</td><td>${a[4]>0?'$'+a[4].toLocaleString('es-MX'):'—'}</td></tr>`).join('')}</tbody></table></div></div>`}
+function detTable(){const rows=detRows();fichaDN(rows);const shown=rows.slice(0,DF.lim),pill=e=>e===0?'<span class="pill-est p">Pagada</span>':e===1?'<span class="pill-est v">Vencida</span>':'<span class="pill-est g">Vigente</span>';
+ const wrap=$('dt').parentElement,sx=wrap.scrollLeft,sy=wrap.scrollTop,wy=window.scrollY;
+ $('dt').innerHTML=`<thead><tr>${DCOLS.map(([k,l])=>`<th class="s" data-k="${k}">${l}${DF.sk===k?(DF.sd<0?' ▼':' ▲'):''}</th>`).join('')}</tr></thead><tbody>${shown.map(t=>{const r=D[t[0]];return `<tr><td class="masked">${r[C.dn]}</td><td>${r[C.usr]}</td><td class="t">${dq(t)}</td><td>${t[1]}</td><td>${t[11]}</td><td>${pill(t[2])}</td><td>${comPill(t)}</td><td>${LINL[r[C.lin]]}</td><td>${t[4]}</td><td>${DATA.ciclos[t[7]]||''}</td><td>${t[5]}</td><td>${t[6]}</td><td>${t[2]===0?'—':'$'+t[8].toLocaleString('es-MX')}</td><td>${t[9]>0?'$'+t[9].toLocaleString('es-MX'):'—'}</td><td>${DATA.forma[t[10]]||''}</td><td>${DATA.plan[r[C.plan]]}</td><td>${r[C.idpdv]}</td><td class="t">${DATA.pdv[r[C.pdv]]}</td><td class="t">${DATA.sup[r[C.sup]]}</td><td class="t">${DATA.ger[r[C.ger]]}</td><td class="t">${DATA.sub[r[C.sub]]}</td><td>${DATA.reg[r[C.reg]]}</td></tr>`}).join('')||`<tr><td colspan="22" class="empty">Ninguna factura coincide con los filtros.</td></tr>`}</tbody>`;
+ wrap.scrollLeft=sx;wrap.scrollTop=sy;window.scrollTo(window.scrollX,wy);
+ $('d_n_txt').textContent=`${fmt(rows.length)} facturas · ${fmt(new Set(rows.map(t=>t[0])).size)} DN`;
+ $('dmore').innerHTML=rows.length>DF.lim?`Se muestran ${fmt(DF.lim)} de ${fmt(rows.length)}. <button class="btn" id="more">Mostrar 500 más</button>`:'';const mb=$('more');if(mb)mb.onclick=()=>{DF.lim+=500;detTable()};
+ document.querySelectorAll('#dt th.s').forEach(th=>th.onclick=()=>{const k=th.dataset.k;DF.sd=DF.sk===k?-DF.sd:1;DF.sk=k;detTable()})}
+/* ---------- navegación y arranque ---------- */
+const TEMAS=[{key:'resumen',ic:'📊',label:'Resumen'},{key:'produccion',ic:'📦',label:'Producción',short:'Producción'},{key:'cobranza',ic:'💰',label:'Cobranza'},{key:'morosidad',ic:'⏰',label:'Morosidad',short:'Mora'},{key:'estado',ic:'💚',label:'Estado de números',short:'Estado'},{key:'comision',ic:'💵',label:'Comisión',short:'Comisión'},{key:'direccion',ic:'🎯',label:'Dirección'},{key:'detalle',ic:'🔎',label:'Detalle por DN',short:'Detalle'}];
+function goTo(k){document.querySelectorAll('.view').forEach(v=>v.classList.toggle('active',v.id==='view-'+k));document.querySelectorAll('.nav-item,.bn-item').forEach(e=>e.classList.toggle('active',e.dataset.view===k));window.scrollTo(0,0)}
+function setupNav(){$('logo-gb').src=$('logo-gb-tb').src=img('logo_gb');
+ $('sb-nav').innerHTML=TEMAS.map(t=>`<div class="nav-item${t.key==='resumen'?' active':''}" data-view="${t.key}"><span class="ic">${t.ic}</span>${t.label}</div>`).join('');
+ $('bn-list').innerHTML=TEMAS.map(t=>`<div class="bn-item${t.key==='resumen'?' active':''}" data-view="${t.key}"><span class="ic">${t.ic}</span>${t.short||t.label}</div>`).join('');
+ document.querySelectorAll('.nav-item,.bn-item').forEach(e=>e.onclick=()=>goTo(e.dataset.view));
+ $('tb-menu-btn').onclick=()=>{const c=$('bottomnav').classList.toggle('nav-collapsed');$('tb-menu-btn').setAttribute('aria-expanded',!c)};
+ $('fb-toggle').onclick=()=>$('fb-panel').classList.toggle('open')}
+function toast(t){const e=$('toast');e.textContent=t;e.hidden=false;clearTimeout(toast._t);toast._t=setTimeout(()=>e.hidden=true,2600)}
+function copy(txt,n,lab){const done=()=>toast(`${n} filas copiadas como ${lab||'texto'}. Pega en Excel con Ctrl+V`),fb=()=>{$('tax').value=txt;$('ta').hidden=false;$('tax').select()};try{navigator.clipboard.writeText(txt).then(done,fb)}catch(e){fb()}}
+$('tac').onclick=()=>$('ta').hidden=true;
+function render(){compute();B=base();headlineUpdate();vResumen();vProd();vCob();vMor();vEstado();vComision();vDir();vDetalle()}
+$('corte').textContent=DATA.corte;$('corte-lbl').textContent='Corte de pagos '+DATA.corte+(DATA.gen?' · actualizado '+DATA.gen:'');
+setupNav();buildFilters();fillSel();render();
+
+</script>
