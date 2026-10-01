@@ -85,18 +85,17 @@ def cargar_estructura(R):
 def cargar_cuotas(R):
     fs = sorted(glob.glob(os.path.join(R, 'CUOTAS', 'Benber', '[0-9][0-9]_20[0-9][0-9].xlsx')))
     use = ['MES', 'IDPV', 'POSPAGO', 'REGION', 'SUB_REG', 'SUB_TERR', 'LIDER', 'NOMBRE_IDPV', 'ESTADO', 'CADENA']
-    L, prev, cap = [], None, None
+    L, cap = [], None
     for f in fs:
         mm = os.path.basename(f)[:2] + os.path.basename(f)[3:7]   # MMYYYY
         ym = int(mm[2:] + mm[:2])                                  # YYYYMM
         d = xl(f, sheet_name='CAPILARIDAD', dtype=object, usecols=lambda c: c in use)
         d['MES'] = pd.to_numeric(d['MES'], errors='coerce'); d['POSPAGO'] = pd.to_numeric(d['POSPAGO'], errors='coerce').fillna(0)
+        # Se usan TODOS los archivos de la carpeta (decisión de Elías); el mes sale del nombre del archivo.
         if d['MES'].dropna().nunique() and int(d['MES'].dropna().mode()[0]) != ym:
-            log('  cuota', os.path.basename(f), 'omitida: la columna MES no coincide con el nombre (copia de otro mes)'); continue
-        d['IDPV'] = nid(d['IDPV']); v = d.groupby('IDPV').POSPAGO.sum()
-        if prev is not None and (v > 0).sum() > 50 and v.reindex(prev.index).fillna(-1).equals(prev):
-            log('  cuota', os.path.basename(f), 'omitida: idéntica al mes anterior (copia)'); continue
-        prev = v; d['M'] = ym; L.append(d[['M', 'IDPV', 'POSPAGO']]); cap = d
+            log('  aviso: cuota', os.path.basename(f), 'trae MES distinto al nombre; se usa como', ym)
+        d['IDPV'] = nid(d['IDPV'])
+        d['M'] = ym; L.append(d[['M', 'IDPV', 'POSPAGO']]); cap = d
     if not L: raise RuntimeError('no encontré cuotas válidas en CUOTAS\\Benber')
     q = pd.concat(L); log('cuotas de', sorted(q.M.unique()), '· total pospago', int(q.POSPAGO.sum()))
     cap = cap.drop_duplicates('IDPV').set_index('IDPV')
@@ -447,12 +446,13 @@ async function abrir(pw){
 async function entrar(pw,auto){
  var m=document.getElementById('m');m.textContent=auto?'':'Abriendo…';
  var h;
- try{h=await abrir(pw)}catch(e){try{localStorage.removeItem('cm_pw')}catch(_){}m.textContent=auto?'':'Contraseña incorrecta';return}
- try{localStorage.setItem('cm_pw',pw)}catch(e){}
+ try{h=await abrir(pw)}catch(e){try{sessionStorage.removeItem('cm_pw')}catch(_){}m.textContent=auto?'':'Contraseña incorrecta';return}
+ try{sessionStorage.setItem('cm_pw',pw)}catch(e){}
  P=null;document.open();document.write(h);document.close();
 }
 document.getElementById('f').onsubmit=function(e){e.preventDefault();entrar(document.getElementById('k').value.trim(),false)};
-try{var s=localStorage.getItem('cm_pw');if(s)entrar(s,true)}catch(e){}
+try{localStorage.removeItem('cm_pw')}catch(e){}
+try{var s=sessionStorage.getItem('cm_pw');if(s)entrar(s,true)}catch(e){}
 })();
 </script></body></html>"""
 

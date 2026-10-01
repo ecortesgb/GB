@@ -23,7 +23,8 @@ Elías habla español y quiere respuestas cortas, con archivos completos y listo
 - Cobranza = facturas pagadas entre consideradas (vencidas + pagadas antes de vencer).
 - Perdida = línea baja/exportada/predesactivada; si no, recuperable.
 - DN enmascarado; no mostrar esquema de agencia ni proformas.
-- Cuota: `CUOTAS\Benber\MM_2026.xlsx` hoja CAPILARIDAD col POSPAGO; el script omite archivos que son copia de otro mes (hoy 10_2026 es copia de septiembre).
+- Cuota: `CUOTAS\Benber\MM_2026.xlsx` hoja CAPILARIDAD col POSPAGO. Se usan TODOS los archivos de la carpeta, sin omitir ninguno (decisión de Elías); el mes sale del nombre del archivo, aunque la columna MES diga otro.
+- La contraseña se recuerda solo en la pestaña (sessionStorage); al abrir de nuevo el enlace la vuelve a pedir.
 
 ## Seguridad (repo público)
 - Publicar SIEMPRE `salida/index.html` (cifrado). `salida/index_abierto.html` trae datos en claro: solo local, está en `.gitignore`.
