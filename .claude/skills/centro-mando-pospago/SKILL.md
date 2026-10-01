@@ -14,7 +14,7 @@ Elías habla español y quiere respuestas cortas, con archivos completos y listo
 3. **Pide a Elías la clave de acceso** (no la inventes ni la muestres de vuelta). Crea `centro-mando-pospago/config.json` desde `config.ejemplo.json`. Ese archivo está en `.gitignore`: **nunca lo subas**.
 4. Genera sin publicar: `py -3 build_centro_mando.py` (≈75 s). Revisa en el log: cuotas usadas, corte de pagos, altas (~2,500+), facturas, sin errores.
 5. Publica: `py -3 build_centro_mando.py --deploy` (copia a `docs/pospago/`, commit y push). Confirma que GitHub Pages sirve `main` carpeta `/docs`; el enlace tarda 1–2 min.
-6. Programa la tarea: `powershell -ExecutionPolicy Bypass -File centro-mando-pospago\instalar_tarea_18h.ps1` (L–V 18:00, se ejecuta al encender si estaba apagada). Verifica con `Get-ScheduledTask 'Centro de Mando Pospago'`.
+6. Actualización MANUAL (decisión de Elías: la info no llega diario). Icono del escritorio "Actualizar Centro de Mando" → `centro-mando-pospago\actualizar_ahora.bat` (pull, genera, publica y muestra el resultado). NO crees la tarea de las 6 pm salvo que Elías la pida (`instalar_tarea_18h.ps1` existe para eso).
 7. Abre el enlace, entra con la clave y confirma que carga y muestra "actualizado <fecha hora>" en el encabezado.
 
 ## Reglas que NO se cambian sin que Elías lo pida
