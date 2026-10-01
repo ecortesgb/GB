@@ -446,13 +446,12 @@ async function abrir(pw){
 async function entrar(pw,auto){
  var m=document.getElementById('m');m.textContent=auto?'':'Abriendo…';
  var h;
- try{h=await abrir(pw)}catch(e){try{sessionStorage.removeItem('cm_pw')}catch(_){}m.textContent=auto?'':'Contraseña incorrecta';return}
- try{sessionStorage.setItem('cm_pw',pw)}catch(e){}
+ try{h=await abrir(pw)}catch(e){m.textContent=auto?'':'Contraseña incorrecta';return}
  P=null;document.open();document.write(h);document.close();
 }
 document.getElementById('f').onsubmit=function(e){e.preventDefault();entrar(document.getElementById('k').value.trim(),false)};
-try{localStorage.removeItem('cm_pw')}catch(e){}
-try{var s=sessionStorage.getItem('cm_pw');if(s)entrar(s,true)}catch(e){}
+// No se recuerda la contraseña (decisión de Elías): se pide cada vez. Se borra la que guardaban versiones anteriores.
+try{localStorage.removeItem('cm_pw');sessionStorage.removeItem('cm_pw')}catch(e){}
 })();
 </script></body></html>"""
 
