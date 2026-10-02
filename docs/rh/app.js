@@ -1,3 +1,4 @@
+/* >>> 01_core.js */
 /* RH GB · app de Recursos Humanos. Pantalla 1: bandeja de posibles bajas y ausencias. */
 const CFG = window.RH_CONFIG, ASSET = window.RH_ASSETS || {};
 const DEMO = new URLSearchParams(location.search).has('demo');
@@ -32,7 +33,7 @@ const Real = {
     return { id, nombre: p.nombre, rol: p.rol, rrhh: p.rrhh_nombre, zona: p.zona_rrhh, reclutador_id: p.reclutador_id, permisos: Object.fromEntries((pm || []).map(x => [x.modulo, x])) };
   },
   async catalogos() {
-    const [t, ma, mb] = await Promise.all([todo(() => sb.from('tiendas').select('idpdv,nombre,cadena,estado,region,gerente,supervisor,rrhh,posiciones')),
+    const [t, ma, mb] = await Promise.all([todo(() => sb.from('tiendas').select('idpdv,nombre,cadena,estado,region,gerente,supervisor,rrhh,posiciones,zona_rrhh')),
       sb.from('catalogo_motivos_ausencia').select('motivo').eq('activo', true), sb.from('catalogo_motivos_baja').select('motivo,tipo').eq('activo', true)]);
     return { tiendas: Object.fromEntries(t.map(x => [x.idpdv, x])), motAus: ma.data.map(x => x.motivo), motBaja: mb.data };
   },
@@ -73,13 +74,15 @@ const Real = {
   }
 };
 
+
+/* >>> 01b_demo_base.js */
 /* ---------- datos de ejemplo (todo ficticio; escribe solo en memoria) ---------- */
 const Demo = (() => {
   const nombres = ['Ana Karen Solís', 'Luis Ángel Ortega', 'María Fernanda Cruz', 'José Manuel Reyes', 'Daniela Ruiz Peña', 'Carlos Iván Mora', 'Paola Estrada', 'Jorge Alberto Lara', 'Valeria Núñez', 'Diego Armando Gil', 'Karla Itzel Vega', 'Miguel Ángel Soto', 'Fátima Luna', 'Ricardo Salas', 'Brenda Morales', 'Héctor Duarte', 'Itzel Aguirre', 'Omar Castañeda', 'Lucía Montes', 'Andrés Cabrera', 'Nancy Palacios', 'Emilio Rangel', 'Sofía Barrera', 'Raúl Meza'];
   const est = [['Puebla', 'SUR', 'Julio César Aldana'], ['Veracruz', 'SUR', 'Jessica Santos'], ['Guanajuato', 'OCCIDENTE', 'Andrea Maya'], ['Nuevo León', 'NORTE', 'Flor Morado'], ['Ciudad de México', 'CENTRO', 'Dulce Apaiz']];
   const cad = ['Coppel', 'Elektra', 'Suburbia', 'Cimaco'];
   const tiendas = {}; let id = 1000;
-  const tien = []; for (let i = 0; i < 40; i++) { const e = est[i % 5]; const t = { idpdv: id + i, nombre: (cad[i % 4]).toUpperCase() + ' ' + ['CENTRO', 'PLAZA SOL', 'NORTE', 'REFORMA', 'ALAMEDA', 'LAS TORRES', 'CANADA', 'AZTECAS'][i % 8] + ' ' + (i + 1), cadena: cad[i % 4], estado: e[0], region: e[1], gerente: 'Gerente Demo', supervisor: 'Supervisor ' + (i % 7 + 1), rrhh: e[2], posiciones: 1 + ((id + i) % 2) }; tiendas[t.idpdv] = t; tien.push(t); }
+  const tien = []; for (let i = 0; i < 40; i++) { const e = est[i % 5]; const t = { idpdv: id + i, nombre: (cad[i % 4]).toUpperCase() + ' ' + ['CENTRO', 'PLAZA SOL', 'NORTE', 'REFORMA', 'ALAMEDA', 'LAS TORRES', 'CANADA', 'AZTECAS'][i % 8] + ' ' + (i + 1), cadena: cad[i % 4], estado: e[0], region: e[1], gerente: 'Gerente Demo', supervisor: 'Supervisor ' + (i % 7 + 1), rrhh: e[2], posiciones: 1 + ((id + i) % 2), zona_rrhh: ['ANDREA AGUILAR BUENO', 'GUADALUPE GOMEZ GARCIA', 'MARIA EUGENIA JUAREZ MORA'][i % 3] }; tiendas[t.idpdv] = t; tien.push(t); }
   const mkAus = (u, k) => { const m = ['Permiso especial', 'Vacaciones', 'Incapacidad (IMSS)', 'Tema médico (particular)']; return Array.from({ length: k }, (_, j) => ({ motivo: m[(u + j) % 4], fecha_inicio: addD(HOY, -(8 + j * 21 + u % 9)), dias: 1 + (u + j) % 5, fecha_regreso: addD(HOY, -(8 + j * 21 + u % 9) + 1 + (u + j) % 5) })); };
   let alertas = nombres.map((n, i) => { const dias = [2, 2, 3, 2, 4, 6, 2, 3, 9, 2, 5, 2, 3, 2, 12, 2, 4, 3, 2, 7, 2, 3, 2, 5][i]; const t = tien[(i * 7) % 40]; return { id: i + 1, usuario: 'DEMO' + String(100 + i), nombre: n, ultimo: addD(HOY, -dias), dias, idpdv: t.idpdv, empresa: ['Benber SS', 'Revelor', 'Doma Legal', 'Atmosphera'][i % 4], ingreso: addD(HOY, -(30 + i * 37)), aus: mkAus(i, i % 4 === 0 ? 3 : i % 3) }; });
   let vigentes = [['Vacaciones', 6, 3], ['Incapacidad (IMSS)', 10, 5], ['Permiso especial', 3, 1], ['Tema médico (particular)', 4, 2], ['Vacaciones', 12, 8], ['Incapacidad (IMSS)', 20, 9], ['Permiso especial', 2, 1]].map((v, i) => ({ id: 500 + i, usuario: 'DEMO' + (300 + i), nombre: ['Pedro Lozano', 'Gabriela Ibarra', 'Mónica Téllez', 'Saúl Cervantes', 'Teresa Pineda', 'Víctor Maya', 'Elena Ochoa'][i], motivo: v[0], inicio: addD(HOY, -v[2]), dias: v[1], regreso: addD(HOY, v[1] - v[2]), idpdv: tien[(i * 5) % 40].idpdv }));
@@ -98,8 +101,436 @@ const Demo = (() => {
 })();
 const API = DEMO ? Demo : Real;
 
+
+/* >>> 02_ui.js */
+/* ====================================================================== UI: gráficos, tablas fijas, filtros, periodo, capturas ====================================================================== */
+const MESN = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+const mlabel = k => MESN[+k.slice(5, 7) - 1] + ' ' + k.slice(2, 4);
+const f1 = n => n == null || isNaN(n) ? '—' : n.toLocaleString('es-MX', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+const fmt1 = n => n == null || isNaN(n) ? '—' : (Math.abs(n - Math.round(n)) < 0.05 ? Math.round(n).toLocaleString('es-MX') : n.toLocaleString('es-MX', { minimumFractionDigits: 1, maximumFractionDigits: 1 }));
+const pn = (a, b) => b > 0 ? a / b * 100 : null;
+const pc1 = (a, b) => b > 0 ? (a / b * 100).toFixed(1) + '%' : '—';
+const pct = (a, b, d = 1) => b > 0 ? (a / b * 100).toFixed(d) + '%' : '—';
+const C = { or: '#EE6602', od: '#C74F00', gr: '#1E7A1E', rd: '#DC2626', am: '#D97706', ye: '#F2C94C', bl: '#00509C', pu: '#5C2483', gy: '#8B939E', dk: '#3B4048', te: '#0F8B8D' };
+const pillx = (t, c) => `<span class="pill ${c}">${t}</span>`;
+const kp = (l, v, s, col, click, ic) => `<div class="kpi ${click ? 'click' : ''}" ${click ? `onclick="${click}"` : ''}><div class="l">${ic ? `<span class="kic">${ic}</span>` : ''}${l}</div><div class="v" style="${col ? 'color:' + col : ''}">${v}</div><div class="s">${s || '&nbsp;'}</div></div>`;
+const sect = (t, ic) => `<div class="section-title"><span class="bar"></span><h3>${ic ? ic + ' ' : ''}${t}</h3></div>`;
+const legend = items => `<div class="leg">${items.map(([n, c]) => `<span><b style="background:${c}"></b>${n}</span>`).join('')}</div>`;
+const dl = (a, b, fx = 1) => a == null || b == null ? '' : `<span class="${a - b >= 0 ? 'up' : 'dn'}">${a - b >= 0 ? '▲' : '▼'} ${Math.abs(a - b).toFixed(fx)} pts vs ant.</span>`;
+
+/* ---------- gráficos SVG ---------- */
+function niceMax(v) { if (v <= 0) return 1; const p = Math.pow(10, Math.floor(Math.log10(v))), m = v / p; return (m <= 1 ? 1 : m <= 2 ? 2 : m <= 5 ? 5 : 10) * p; }
+function chart(labels, series, o = {}) {
+  const W = o.w || 760, H = o.h || 240, L = 44, R = 14, T = 20, B = 28, pw = W - L - R, ph = H - T - B, n = labels.length;
+  const all = [...series.flatMap(s => s.v), ...(o.lines || []).flatMap(s => s.v)].filter(x => x != null);
+  let mx = o.max != null ? o.max : niceMax(Math.max(1e-9, ...all));
+  if (o.stack) { const tot = labels.map((_, i) => series.reduce((a, s) => a + (s.v[i] || 0), 0)); mx = o.max != null ? o.max : niceMax(Math.max(1e-9, ...tot, ...(o.lines || []).flatMap(s => s.v).filter(x => x != null))); }
+  const y = v => T + ph - (v / mx) * ph, bw = pw / Math.max(1, n), xc = i => L + i * bw + bw / 2, xs = i => L + (n <= 1 ? pw / 2 : i * pw / (n - 1));
+  const lab = v => o.pct ? Math.round(v) + '%' : fmt(v);
+  let g = '';
+  for (let k = 0; k <= 4; k++) { const v = mx * k / 4; g += `<line class="g" x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}"/><text x="${L - 6}" y="${y(v) + 3}" text-anchor="end">${lab(v)}</text>`; }
+  const every = Math.ceil(n / (o.ticks || 14));
+  labels.forEach((l, i) => { if (i % every === 0) g += `<text x="${o.bars ? xc(i) : xs(i)}" y="${H - 8}" text-anchor="middle">${esc(l)}</text>`; });
+  if (o.bars) {
+    const ns = o.stack ? 1 : series.length, w = Math.max(3, bw * 0.74 / ns);
+    labels.forEach((_, i) => {
+      let acc = 0;
+      series.forEach((s, j) => {
+        const v = s.v[i] || 0, x = o.stack ? L + i * bw + bw * 0.13 : L + i * bw + bw * 0.13 + j * w, h = v / mx * ph, yy = o.stack ? T + ph - (acc + v) / mx * ph : T + ph - h, ww = o.stack ? bw * 0.74 : w;
+        g += `<rect x="${x}" y="${yy}" width="${ww}" height="${Math.max(0, h)}" fill="${s.c}" rx="3"><title>${esc(labels[i])} · ${esc(s.n)}: ${o.pct ? v.toFixed(1) + '%' : fmt(v)}</title></rect>`;
+        if (o.vals && h > 15 && ww > 16) g += `<text x="${x + ww / 2}" y="${yy + h / 2 + 4}" text-anchor="middle" style="fill:#fff;font-weight:800;font-size:11px">${fmt(v)}</text>`;
+        acc += v;
+      });
+    });
+  } else series.forEach(s => {
+    let d = ''; s.v.forEach((v, i) => { if (v != null) d += (d ? 'L' : 'M') + xs(i) + ',' + y(v); });
+    g += `<path d="${d}" fill="none" stroke="${s.c}" stroke-width="2.6" stroke-linejoin="round"/>`;
+    s.v.forEach((v, i) => { if (v != null) g += `<circle cx="${xs(i)}" cy="${y(v)}" r="3.2" fill="${s.c}"><title>${esc(labels[i])} · ${esc(s.n)}: ${o.pct ? v.toFixed(1) + '%' : fmt(v)}</title></circle>${o.vals ? `<text x="${xs(i)}" y="${y(v) - 8}" text-anchor="middle" style="font-weight:800;font-size:10px;fill:${s.c}">${o.pct ? v.toFixed(0) + '%' : fmt(v)}</text>` : ''}`; });
+  });
+  (o.lines || []).forEach(s => {
+    let d = ''; s.v.forEach((v, i) => { if (v != null) d += (d ? 'L' : 'M') + (o.bars ? xc(i) : xs(i)) + ',' + y(v); });
+    g += `<path d="${d}" fill="none" stroke="${s.c}" stroke-width="2.6" stroke-dasharray="${s.dash || ''}"/>`;
+    s.v.forEach((v, i) => { if (v != null) g += `<circle cx="${o.bars ? xc(i) : xs(i)}" cy="${y(v)}" r="3.4" fill="#fff" stroke="${s.c}" stroke-width="2"><title>${esc(labels[i])} · ${esc(s.n)}: ${o.pct2 ? v.toFixed(1) + '%' : fmt(v)}</title></circle>`; });
+  });
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img">${g}</svg>`;
+}
+function donut(items, o = {}) {
+  const tot = items.reduce((a, b) => a + b.v, 0) || 1; let a0 = -Math.PI / 2, p = '';
+  items.forEach(it => {
+    if (!it.v) return; const a1 = a0 + it.v / tot * 2 * Math.PI, r = 66, ri = 42, cx = 80, cy = 80, lg = a1 - a0 > Math.PI ? 1 : 0;
+    const P = (rr, a) => [cx + rr * Math.cos(a), cy + rr * Math.sin(a)]; const e = Math.min(a1, a0 + 6.2831);
+    const [x0, y0] = P(r, a0), [x1, y1] = P(r, e), [x2, y2] = P(ri, e), [x3, y3] = P(ri, a0);
+    p += `<path d="M${x0},${y0}A${r},${r} 0 ${lg} 1 ${x1},${y1}L${x2},${y2}A${ri},${ri} 0 ${lg} 0 ${x3},${y3}Z" fill="${it.c}" stroke="#fff" stroke-width="1.5"><title>${esc(it.n)}: ${fmt(it.v)}</title></path>`; a0 = a1;
+  });
+  const top = [...items].sort((a, b) => b.v - a.v)[0];
+  return `<div class="donut"><svg class="donut-svg" viewBox="0 0 160 160" width="164" height="164">${p}<text x="80" y="76" text-anchor="middle" style="font-size:18px;font-weight:800;fill:#1a1a1a">${o.centro != null ? o.centro : fmt(tot)}</text><text x="80" y="92" text-anchor="middle" style="font-size:9px">${esc(o.sub || 'total')}</text></svg>
+  <div class="donut-leg">${items.map(it => `<div class="dl-row ${top && it === top && o.best ? 'best' : ''}"><i style="background:${it.c}"></i><span class="dl-n" title="${esc(it.n)}">${esc(it.n)}</span><b>${o.fmtv ? o.fmtv(it) : fmt(it.v)}</b><em>${pct(it.v, tot, 0)}</em></div>`).join('')}</div></div>`;
+}
+function hbars(rows, col, o = {}) {
+  const mx = Math.max(1e-9, ...rows.map(r => r.v));
+  return `<div class="funnel">${rows.map(r => `<div class="frow"><span title="${esc(r.n)}" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.n)}</span><div class="fb"><i style="width:${Math.max(2, r.v / mx * 100)}%;background:${r.c || col}"></i></div><span>${o.pct ? r.v.toFixed(1) + '%' : fmt(r.v)}${r.s ? ` <small class="pc">${r.s}</small>` : ''}</span></div>`).join('')}</div>`;
+}
+function embudo(titulo, etapas) {
+  const mx = etapas[0].v || 1;
+  return `<div class="card"><h3>${titulo}</h3><div class="funnel2">${etapas.map(e => `<div class="fn-row"><div class="fn-l">${e.n}</div><div class="fn-b" style="width:${Math.max(10, e.v / mx * 100)}%;background:${e.c}"><span>${fmt1(e.v)}</span></div></div>`).join('')}</div></div>`;
+}
+
+/* ---------- tablas con encabezados y columnas fijas, búsqueda, CSV y PNG ----------
+   cols: [{h, v, r, t(texto a la izquierda), w(ancho px), grp, c(clase de color)}] · opts: {fix:n, groups:[{t,span,cls}], search, csv, png, file, sort, dir, lim, titulo, maxh} */
+let TB = {};
+function tbl(id, cols, rows, o = {}) {
+  TB[id] = { cols, rows, sort: o.sort == null ? -1 : o.sort, dir: o.dir || -1, q: '', lim: o.lim || 300, file: o.file || id, fix: o.fix || 0, groups: o.groups || null, titulo: o.titulo || o.file || id, maxh: o.maxh };
+  return `<div class="tools tb-tools">${o.search ? `<input type="search" placeholder="🔎 Buscar…" oninput="tq('${id}',this.value)">` : ''}<span class="muted" id="${id}-n"></span><span class="tb-btns">${o.png ? `<button class="btn sm" onclick="tpng('${id}')" title="Descarga la tabla filtrada como imagen para compartirla">📸 Imagen</button><button class="btn sm" onclick="tpngCopiar('${id}')" title="Copia la imagen para pegarla en WhatsApp">📋 Copiar</button>` : ''}${o.csv ? `<button class="btn sm" onclick="tcsv('${id}')">⬇ CSV</button>` : ''}</span></div><div class="tw" id="${id}-w" ${o.maxh ? `style="max-height:${o.maxh}"` : ''}><table class="dt st" id="${id}"></table></div>`;
+}
+function filtraT(T) { let rows = T.rows; if (T.q) { const q = norm(T.q); rows = rows.filter(r => T.cols.some(c => norm(c.v(r) == null ? '' : c.v(r)).includes(q))); } return rows; }
+function tdraw(id) {
+  const T = TB[id], el = $(id); if (!el) return; let rows = filtraT(T);
+  if (T.sort >= 0) { const c = T.cols[T.sort]; rows = rows.slice().sort((a, b) => { const x = c.v(a), y = c.v(b); const nx = x == null || x === '', ny = y == null || y === ''; if (nx || ny) return nx && ny ? 0 : nx ? 1 : -1; return (typeof x === 'number' && typeof y === 'number' ? x - y : String(x).localeCompare(String(y), 'es')) * T.dir; }); }
+  const shown = rows.slice(0, T.lim); const left = []; let acc = 0; T.cols.forEach((c, i) => { left[i] = acc; if (i < T.fix) acc += c.w || 110; });
+  const fx = i => i < T.fix ? ` fx" style="left:${left[i]}px;min-width:${T.cols[i].w || 110}px;max-width:${T.cols[i].w || 110}px` : '"';
+  const th = (c, i) => `<th class="s${i < T.fix ? ' fx' : ''}${c.hc ? ' ' + c.hc : ''}" ${i < T.fix ? `style="left:${left[i]}px;min-width:${c.w || 110}px;max-width:${c.w || 110}px"` : ''} onclick="tsort('${id}',${i})">${c.h}${T.sort === i ? (T.dir > 0 ? ' ▲' : ' ▼') : ''}</th>`;
+  let h = '<thead>';
+  if (T.groups) { let k = 0; h += '<tr class="g1">' + T.groups.map(g => { const cells = T.cols.slice(k, k + g.span); const fixed = k < T.fix; const lf = fixed ? left[k] : 0; const w = fixed ? cells.reduce((a, c, j) => a + (k + j < T.fix ? (c.w || 110) : 0), 0) : 0; const r = `<th colspan="${g.span}" class="gh ${g.cls || ''}${fixed ? ' fx' : ''}" ${fixed ? `style="left:${lf}px;min-width:${w}px"` : ''}>${g.t}</th>`; k += g.span; return r; }).join('') + '</tr>'; }
+  h += `<tr class="${T.groups ? 'g2' : ''}">` + T.cols.map(th).join('') + '</tr></thead><tbody>';
+  h += shown.map(r => '<tr>' + T.cols.map((c, i) => { const v = c.v(r), disp = c.r ? c.r(r) : (v == null ? '—' : (typeof v === 'number' ? (c.h === 'IDPDV' ? v : fmt(v)) : esc(v))); const cl = (typeof c.c === 'function' ? c.c(r) : c.c) || ''; return `<td class="${c.t ? 't ' : ''}${i < T.fix ? 'fx ' : ''}${cl}" ${i < T.fix ? `style="left:${left[i]}px;min-width:${c.w || 110}px;max-width:${c.w || 110}px"` : ''}>${disp}</td>`; }).join('') + '</tr>').join('');
+  el.innerHTML = h + '</tbody>';
+  const n = $(id + '-n'); if (n) n.textContent = rows.length > T.lim ? `Mostrando ${T.lim} de ${fmt(rows.length)}` : `${fmt(rows.length)} filas`;
+}
+const tsort = (id, i) => { const T = TB[id]; if (T.sort === i) T.dir = -T.dir; else { T.sort = i; T.dir = T.cols[i].t ? 1 : -1; } tdraw(id); };
+const tq = (id, v) => { TB[id].q = v; tdraw(id); };
+function tcsv(id) {
+  const T = TB[id], rows = filtraT(T), q = s => '"' + String(s == null ? '' : s).replace(/"/g, '""') + '"';
+  const t = [T.cols.map(c => q(c.h.replace(/<[^>]+>/g, ''))).join(',')].concat(rows.map(r => T.cols.map(c => q(c.v(r))).join(','))).join('\n');
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(['﻿' + t], { type: 'text/csv;charset=utf-8' })); a.download = T.file + '.csv'; a.click(); toast('CSV descargado');
+}
+const drawAll = () => Object.keys(TB).forEach(tdraw);
+
+/* ---------- capturas (PNG) para compartir en los grupos ---------- */
+async function pngDe(el, titulo, sub) {
+  if (!window.html2canvas) throw new Error('El generador de imágenes no cargó (revisa tu conexión).');
+  const box = document.createElement('div'); box.className = 'cap-box';
+  box.innerHTML = `<div class="cap-head"><img src="${img('logo_gb')}" alt=""><div><b>${esc(titulo)}</b><small>${esc(sub || '')}</small></div><span>Grupo Benber · RH · ${fdate(HOY)}</span></div>`;
+  const clon = el.cloneNode(true); clon.querySelectorAll('.tw').forEach(t => { t.style.maxHeight = 'none'; t.style.overflow = 'visible'; }); clon.querySelectorAll('[data-nocap]').forEach(x => x.remove());
+  clon.querySelectorAll('details').forEach(d => d.setAttribute('open', ''));
+  box.appendChild(clon); document.body.appendChild(box);
+  try { return await html2canvas(box, { scale: 2, backgroundColor: '#ffffff', useCORS: true, windowWidth: Math.max(box.scrollWidth, 900) }); } finally { box.remove(); }
+}
+async function capturaDescargar(el, titulo, sub, nombre) { toast('Generando imagen…'); try { const c = await pngDe(el, titulo, sub); const a = document.createElement('a'); a.href = c.toDataURL('image/png'); a.download = (nombre || titulo).replace(/[^\w\-]+/g, '_') + '_' + HOY + '.png'; a.click(); toast('Imagen descargada'); } catch (e) { toast(e.message || e); } }
+async function capturaCopiar(el, titulo, sub) { toast('Generando imagen…'); try { const c = await pngDe(el, titulo, sub); c.toBlob(async b => { try { await navigator.clipboard.write([new ClipboardItem({ 'image/png': b })]); toast('Imagen copiada: pégala en WhatsApp'); } catch (e) { toast('Tu navegador no permite copiar imágenes; usa Descargar'); } }); } catch (e) { toast(e.message || e); } }
+const tpng = id => capturaDescargar($(id + '-w'), TB[id].titulo, subFiltros(), TB[id].file);
+const tpngCopiar = id => capturaCopiar($(id + '-w'), TB[id].titulo, subFiltros());
+const subFiltros = () => { const f = Object.entries(FL).filter(([, v]) => v).map(([k, v]) => v).join(' · '); return f || 'Todas las zonas'; };
+
+/* ---------- filtros de estructura (compartidos por todas las secciones) ---------- */
+const FL = { region: '', gerente: '', supervisor: '', zona_rrhh: '', rrhh: '', cadena: '' };
+const FCAMPOS = [['region', 'Región'], ['gerente', 'Gerente / Líder'], ['supervisor', 'Supervisor'], ['zona_rrhh', 'Gerencia RR.HH.'], ['rrhh', 'RR.HH.'], ['cadena', 'Cadena']];
+const okT = t => t ? Object.entries(FL).every(([k, v]) => !v || t[k] === v) : !Object.values(FL).some(Boolean);
+const okI = id => okT(tienda(id));
+function barraFiltros(fn, base, campos) {
+  base = base || Object.values(S.cat.tiendas); campos = campos || FCAMPOS.map(c => c[0]);
+  const sel = FCAMPOS.filter(c => campos.includes(c[0])).map(([k, l]) => {
+    const ops = [...new Set(base.filter(t => Object.entries(FL).every(([kk, v]) => kk === k || !v || t[kk] === v)).map(t => t[k]).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es'));
+    return `<div class="fb-field ${FL[k] ? 'on' : ''}"><label>${l}</label><select onchange="FL['${k}']=this.value;${fn}()"><option value="">Todos</option>${ops.map(o => `<option ${FL[k] === o ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select></div>`;
+  }).join('');
+  return `<div class="fbar" data-nocap>${sel}<button class="btn sm" onclick="Object.keys(FL).forEach(k=>FL[k]='');${fn}()">✕ Quitar filtros</button></div>`;
+}
+
+/* ---------- periodo: semana · mes · rango (como Avance GB) ---------- */
+const PER = { modo: 'semana', sem: null, mes: null, desde: null, hasta: null };
+function ventana() { return R.meta.ventana; }
+function limites() { return { min: R.meta.cd_desde, max: R.meta.ultima_fecha || HOY }; }
+function rangoSemanaDe(i) { const w = ventana()[i], L = limites(); const fin = [addD(w.ini, 6), L.max].reduce((a, b) => a < b ? a : b); return { desde: w.ini, hasta: fin }; }
+function perRango() {
+  const L = limites(), W = ventana(); let d, h;
+  if (PER.modo === 'semana') { if (PER.sem == null) PER.sem = W.length - 1; ({ desde: d, hasta: h } = rangoSemanaDe(PER.sem)); }
+  else if (PER.modo === 'mes') { const m = PER.mes || L.max.slice(0, 7); d = m + '-01'; const nx = new Date(m + '-01T12:00:00'); nx.setMonth(nx.getMonth() + 1); nx.setDate(0); h = nx.getFullYear() + '-' + pad(nx.getMonth() + 1) + '-' + pad(nx.getDate()); }
+  else if (PER.modo === 'dia') { d = h = PER.desde || L.max; }
+  else { d = PER.desde || addD(L.max, -6); h = PER.hasta || L.max; }
+  if (d < L.min) d = L.min; if (h > L.max) h = L.max; if (h < d) h = d;
+  const dias = []; for (let x = d; x <= h; x = addD(x, 1)) dias.push(x);
+  return { desde: d, hasta: h, dias };
+}
+function semanasUlt4(r) { // las 4 últimas semanas (lun-dom) contra las que se compara el periodo filtrado
+  const W = ventana(); let i = W.findIndex(w => addD(w.ini, 6) >= r.hasta && w.ini <= r.hasta); if (i < 0) i = W.length - 1;
+  const out = []; for (let k = Math.max(0, i - 3); k <= i; k++) { const s = rangoSemanaDe(k); const dias = []; for (let x = s.desde; x <= s.hasta; x = addD(x, 1)) dias.push(x); out.push({ i: k, w: W[k].w, ...s, dias }); }
+  return out;
+}
+function meses3() { const L = limites(), out = []; for (let m = L.min.slice(0, 7); m <= L.max.slice(0, 7);) { out.push(m); const x = new Date(m + '-01T12:00:00'); x.setMonth(x.getMonth() + 1); m = x.getFullYear() + '-' + pad(x.getMonth() + 1); } return out; }
+function barraPeriodo(fn, opts = {}) {
+  const W = ventana(), L = limites(), r = perRango(), modos = [['semana', '📅 Semana'], ['mes', '🗓️ Mes'], ['rango', '↔️ Rango'], ...(opts.dia ? [['dia', '☀️ Día']] : [])];
+  let ctl = '';
+  if (PER.modo === 'semana') ctl = `<select onchange="PER.sem=+this.value;${fn}()">${W.map((w, k) => `<option value="${k}" ${k === PER.sem ? 'selected' : ''}>${w.w} · ${fdate(w.ini)}${k === W.length - 1 ? ' (en curso)' : ''}</option>`).join('')}</select>`;
+  else if (PER.modo === 'mes') ctl = `<select onchange="PER.mes=this.value;${fn}()">${meses3().map(m => `<option value="${m}" ${(PER.mes || L.max.slice(0, 7)) === m ? 'selected' : ''}>${mlabel(m)}${m === L.max.slice(0, 7) ? ' (en curso)' : ''}</option>`).join('')}</select>`;
+  else if (PER.modo === 'dia') ctl = `<input type="date" min="${L.min}" max="${L.max}" value="${r.desde}" onchange="PER.desde=this.value;${fn}()">`;
+  else ctl = `<input type="date" min="${L.min}" max="${L.max}" value="${r.desde}" onchange="PER.desde=this.value;${fn}()"> <span>a</span> <input type="date" min="${L.min}" max="${L.max}" value="${r.hasta}" onchange="PER.hasta=this.value;${fn}()">`;
+  return `<div class="pbar" data-nocap><div class="seg">${modos.map(([k, n]) => `<button class="${PER.modo === k ? 'on' : ''}" onclick="PER.modo='${k}';${k === 'dia' ? "PER.desde=PER.desde||'" + L.max + "';" : ''}${fn}()">${n}</button>`).join('')}</div>${ctl}<span class="muted">${r.dias.length} día${r.dias.length > 1 ? 's' : ''} · ${fdate(r.desde)} al ${fdate(r.hasta)} (últimos 3 meses disponibles)</span></div>`;
+}
+
+/* >>> 03_reportes.js */
+/* ====================================================================== REPORTES: RESUMEN · PENALIZACIÓN · DETALLE DE CHECKS · HC ====================================================================== */
+const norm = s => String(s == null ? '' : s).normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().replace(/\s+/g, ' ').trim();
+const EST_COB = ['Cubierta', 'Descubierta', 'Vacante'], COBC = [C.gr, C.am, C.rd];
+const EST_PEN = ['Cubierto', 'Riesgo Penalización', 'Penalizado'];
+const LOGO = { Coppel: 'logo_coppel_clean', Elektra: 'logo_elektra_clean', Suburbia: 'logo_suburbia_clean', Cimaco: 'logo_cimaco_clean' };
+const logoCad = c => LOGO[c] ? `<img class="cadena-logo" src="${img(LOGO[c])}" alt="${esc(c)}">` : `<b style="min-width:70px;font-size:12px">${esc(c)}</b>`;
+
+/* ----- carga ----- */
+const R = { loaded: false, T: [], hc: [], uc: {}, bajasLive: new Map(), solo: true, rach: 'todas', est: '', estA: '', estC: '', cadenaPen: true };
+Real.reporte = async function () {
+  const [m, t, h, u, bj] = await Promise.all([sb.from('rep_meta').select('valor').eq('clave', 'ventana').maybeSingle(), todo(() => sb.from('rep_tienda').select('*')), todo(() => sb.from('rep_hc').select('*')), todo(() => sb.from('rep_ultimo_check').select('*')),
+    todo(() => sb.from('bajas').select('usuario_fieldwy,fecha_baja').gte('fecha_baja', addD(HOY, -200)))]);
+  if (!m.data) throw new Error('Todavía no hay reportes publicados. Corre publicar_reporte.py.');
+  return { meta: m.data.valor, tiendas: t, hc: h, uc: u, bajas: bj };
+};
+const CHK_COLS = '*';
+Real.checks = function (desde, hasta) { return todo(() => sb.from('rep_checks').select(CHK_COLS).gte('fecha', desde).lte('fecha', hasta).order('fecha').order('hora_in')); };
+async function cargarReporte() {
+  if (R.loaded) return;
+  const d = await API.reporte();
+  R.meta = d.meta; R.hc = d.hc; R.uc = Object.fromEntries(d.uc.map(x => [x.usuario, x])); R.bajasLive = new Map(d.bajas.map(b => [b.usuario_fieldwy, b.fecha_baja]));
+  R.T = d.tiendas.map(r => ({ id: r.idpdv, t: tienda(r.idpdv) || { nombre: 'IDPDV ' + r.idpdv, cadena: '', estado: '', region: '', gerente: '', supervisor: '', rrhh: '', zona_rrhh: '', posiciones: 0 }, sem: r.semanas || [], chk: (r.chk && r.chk.s) || [], cd: (r.chk && r.chk.cd) || '', dias: r.dias || '', hc: r.hc_sem || [], pen: r.pen || [] }));
+  R.loaded = true;
+}
+const cargando = (t, m) => { $('content').innerHTML = cab(t, 'Cargando…', m); };
+async function conReporte(titulo, mascota, fn) {
+  try { cargando(titulo, mascota); await cargarReporte(); await fn(); } catch (e) { console.error(e); $('content').innerHTML = cab(titulo, '', mascota) + `<div class="card empty"><img src="${img('guino')}" alt="">${esc(e.message || e)}</div>`; }
+}
+const xsF = () => R.T.filter(x => okT(x.t));
+
+/* ----- movimientos (ingresos reales por candidatos + bajas) para rotación ----- */
+const MV = { loaded: false, ing: [], baj: [] };
+Real.movs = async function () {
+  const desde = addD(HOY, -125);
+  const [i, b] = await Promise.all([todo(() => sb.from('candidatos').select('id,fecha_programada,idpdv,reclutador_id,fuente_id').eq('estatus', 'Ingresó').gte('fecha_programada', desde)), todo(() => sb.from('bajas').select('usuario_fieldwy,fecha_baja,idpdv,motivo').gte('fecha_baja', desde))]);
+  return { ing: i.map(x => ({ f: x.fecha_programada, idpdv: x.idpdv, rec: x.reclutador_id, fu: x.fuente_id })), baj: b.map(x => ({ f: x.fecha_baja, idpdv: x.idpdv, mot: x.motivo, u: x.usuario_fieldwy })) };
+};
+async function cargarMovs(force) { if (MV.loaded && !force) return; const d = await API.movs(); MV.ing = d.ing; MV.baj = d.baj; MV.loaded = true; }
+function hcProm(r) { // promedio de promotores con check por semana dentro del periodo (estructura filtrada)
+  const sa = R.meta.semanas_anio, xs = xsF(); let tot = [], n = 0;
+  sa.forEach((s, i) => { const fin = addD(s.ini, 6); if (fin < r.desde || s.ini > r.hasta) return; tot.push(xs.reduce((a, x) => a + (x.hc[i] || 0), 0)); });
+  return tot.length ? tot.reduce((a, b) => a + b, 0) / tot.length : 0;
+}
+function rotPeriodo(r) {
+  const ing = MV.ing.filter(x => x.f >= r.desde && x.f <= r.hasta && okI(x.idpdv)).length, baj = MV.baj.filter(x => x.f >= r.desde && x.f <= r.hasta && okI(x.idpdv)).length, hc = hcProm(r);
+  return { ing, baj, hc, rot: hc ? baj / hc * 100 : null };
+}
+
+/* ----- medidas de cobertura (misma lógica de Avance GB / medidas DAX) ----- */
+const posc = t => t.posiciones || 1;
+const dimPdv = ts => ts.reduce((a, t) => a + (posc(t) === 1 ? 6 / 7 : 1), 0);
+const dimProm = ts => ts.reduce((a, t) => a + posc(t) * 6 / 7, 0);
+const cdv = (x, d) => { const k = diffD(d, R.meta.cd_desde); const ch = x.cd[k]; return ch == null ? 0 : parseInt(ch, 36); };
+function medidas(xs, dias) {
+  const ts = xs.filter(x => (x.t.posiciones || 0) > 0), T = ts.map(z => z.t), nD = Math.max(1, dias.length);
+  let cubSum = 0, chk = 0; ts.forEach(x => dias.forEach(d => { const c = cdv(x, d); if (c > 0) cubSum++; chk += c; }));
+  const dP = dimPdv(T), dM = dimProm(T), pP = cubSum / nD, pM = chk / nD, cuota = T.reduce((a, t) => a + 6 * posc(t), 0) * nD / 7;
+  return { n: ts.length, posc: T.reduce((a, t) => a + posc(t), 0), dP, pP, pctP: dP ? Math.min(pP / dP * 100, 100) : null, difP: pP - dP, dM, pM, pctM: dM ? Math.min(pM / dM * 100, 100) : null, difM: pM - dM, chk, nD, cuota, pctC: cuota ? Math.min(chk / cuota * 100, 100) : null, exc: Math.max(0, chk - cuota) };
+}
+function medTienda(x, dias, last) {
+  const ps = posc(x.t), nD = Math.max(1, dias.length); let dc = 0, chk = 0; dias.forEach(d => { const c = cdv(x, d); if (c > 0) dc++; chk += c; });
+  const cuota = 6 * ps * nD / 7, dimC = ps === 1 ? 6 / 7 : 1, dimA = ps * 6 / 7, promC = dc / nD, promA = chk / nD;
+  let ult = null; const fin = diffD(dias[dias.length - 1], R.meta.cd_desde); for (let k = Math.min(fin, x.cd.length - 1); k >= 0; k--) if (x.cd[k] !== '0') { ult = addD(R.meta.cd_desde, k); break; }
+  return { ps, chk, cuota, pctCh: Math.min(chk / cuota * 100, 100), falt: Math.max(0, cuota - chk), adic: Math.max(0, chk - cuota), dimA, promA, pctA: Math.min(promA / dimA * 100, 100), difA: promA - dimA, dimC, promC, pctC: Math.min(promC / dimC * 100, 100), difC: promC - dimC, ult };
+}
+function estatusTienda(x, dias) {
+  const last2 = dias.slice(-2).reverse(), ps = posc(x.t), r = last2.length ? cdv(x, last2[0]) : 0, a = last2.length > 1 ? cdv(x, last2[1]) : null; let cob;
+  if (a == null) cob = r > 0 ? 'Cubierta' : 'Descubierta'; else cob = r > 0 && a > 0 ? 'Cubierta' : r === 0 && a === 0 ? 'Vacante' : 'Descubierta';
+  const A = a || 0; let asi;
+  if (ps <= 1) asi = cob; else if (a == null) asi = r >= ps ? 'Cubierta' : r > 0 ? 'Posc Desc' : 'Descubierta';
+  else if (r > ps && A > ps) asi = 'Posc Adic'; else if (r >= ps && A >= ps) asi = 'Cubierta'; else if (r === 0 && A === 0) asi = 'Vacante';
+  else if (r < ps && r > 0 && A < ps && A > 0) asi = 'Posc Faltante'; else if ((r < ps && r > 0) || (A < ps && A > 0)) asi = 'Posc Desc'; else if (r === 0 || A === 0) asi = 'Descubierta'; else asi = 'Sin Definir';
+  return { cob, asi };
+}
+const ASIC = { 'Cubierta': 'g', 'Posc Adic': 'g', 'Posc Desc': 'a', 'Descubierta': 'a', 'Posc Faltante': 'r', 'Vacante': 'r', 'Sin Definir': 'x' };
+const ASIE = { 'Cubierta': '🟢', 'Posc Adic': '🔵', 'Posc Desc': '🟠', 'Descubierta': '🟠', 'Posc Faltante': '🔴', 'Vacante': '🔴', 'Sin Definir': '⚪' };
+const colPct = p => p == null ? '' : p >= 90 ? 'ok' : p >= 75 ? 'wa' : 'ko';
+
+/* ====================================================================== 1 · RESUMEN ====================================================================== */
+async function vResumen() {
+  await conReporte('Resumen', 'pulgares', async () => {
+    await cargarMovs();
+    const r = perRango(), dias = r.dias, xs = xsF(), cur = medidas(xs, dias), sems = semanasUlt4(r), S4 = sems.map(w => medidas(xs, w.dias)), prev = S4.length > 1 ? S4[S4.length - 2] : null;
+    const rot = rotPeriodo(r);
+    let h = cab('Resumen', 'Cobertura de PDV, asistencia de promotores y checks contra cuota (misma lógica de Avance GB), más rotación del periodo. Todo responde a los filtros de estructura y al periodo elegido.', 'pulgares') + barraFiltros('vResumen') + barraPeriodo('vResumen');
+    h += `<div class="kpis kp-hero">${kp('% Cobertura PDV', cur.pctP == null ? '—' : f1(cur.pctP) + '%', `${fmt1(cur.pP)} tiendas/día vs ${fmt1(cur.dP)} dimensionadas<br>${dl(cur.pctP, prev && prev.pctP)}`, colorPct(cur.pctP), null, '🏬')}
+      ${kp('% Asistencia Promotor', cur.pctM == null ? '—' : f1(cur.pctM) + '%', `${fmt1(cur.pM)} promotores/día vs ${fmt1(cur.dM)} dimensionados<br>${dl(cur.pctM, prev && prev.pctM)}`, colorPct(cur.pctM), null, '🧍')}
+      ${kp('% Checks vs cuota', cur.pctC == null ? '—' : f1(cur.pctC) + '%', `${fmt(cur.chk)} checks vs cuota ${fmt(cur.cuota)} (6 por posición por semana)<br>${dl(cur.pctC, prev && prev.pctC)}`, C.bl, null, '✅')}
+      ${kp('Rotación del periodo', rot.rot == null ? '—' : f1(rot.rot) + '%', `${rot.baj} bajas ÷ ${fmt(rot.hc)} HC promedio<br>${rot.ing} ingresos · neto ${rot.ing - rot.baj >= 0 ? '+' : ''}${rot.ing - rot.baj}`, C.am, null, '🔄')}</div>`;
+    h += `<div class="grid g3">${embudo('🏬 Cobertura PDV', [{ n: "Total PDV's", v: cur.n, c: C.bl }, { n: 'Dimensionamiento', v: cur.dP, c: '#3D6FB6' }, { n: 'Cubiertos (prom. diario)', v: cur.pP, c: C.gr }, { n: 'Descubiertos', v: Math.max(0, -cur.difP), c: C.rd }])}
+      ${embudo('🧍 Asistencia Promotor', [{ n: 'Posiciones autorizadas', v: cur.posc, c: C.bl }, { n: 'Dimensionamiento', v: cur.dM, c: '#3D6FB6' }, { n: 'Asistieron (prom. diario)', v: cur.pM, c: C.gr }, { n: 'Sin asistir', v: Math.max(0, -cur.difM), c: C.rd }])}
+      ${embudo('✅ Checks vs cuota', [{ n: 'Cuota de checks (periodo)', v: cur.cuota, c: C.bl }, { n: 'Checks válidos', v: cur.chk, c: C.gr }, { n: 'Faltantes', v: Math.max(0, cur.cuota - cur.chk), c: C.rd }, { n: 'Adicionales', v: cur.exc, c: C.am }])}</div>`;
+    const cads = [...new Set(xs.map(x => x.t.cadena).filter(Boolean))];
+    const cadRows = cads.map(c => { const m = medidas(xs.filter(y => y.t.cadena === c), dias); return { c, n: m.n, p: m.pctP, a: m.pctM }; }).filter(q => q.n).sort((a, b) => b.n - a.n);
+    const st = xs.filter(x => (x.t.posiciones || 0) > 0).map(x => ({ x, s: estatusTienda(x, dias) })), ce = { Cubierta: 0, Descubierta: 0, Vacante: 0 }; st.forEach(z => ce[z.s.cob]++);
+    h += `<div class="grid g2"><div class="card"><h3>🏪 Cobertura por cadena</h3><p class="note">% Cobertura PDV (barra) y % Asistencia Promotor.</p>${cadRows.map(q => `<div class="cadena-row">${logoCad(q.c)}<div class="cadena-track"><i style="width:${q.p || 0}%;background:${colorPct(q.p)}"></i></div><b class="cadena-val" style="color:${colorPct(q.p)}">${f1(q.p)}%</b><span class="muted" style="min-width:96px;text-align:right">asist. ${f1(q.a)}%</span></div>`).join('')}</div>
+      <div class="card"><h3>🚦 Estatus de tiendas (últimos 2 días)</h3><p class="note">Cubierta: check los 2 días · Descubierta: falta 1 día · Vacante: 2 días sin check.</p>${donut(['Cubierta', 'Descubierta', 'Vacante'].map((n, k) => ({ n, v: ce[n], c: COBC[k] })), { sub: 'tiendas' })}</div></div>`;
+    const labs = sems.map(w => w.w.slice(3));
+    h += `<div class="grid g2"><div class="card"><h3>📈 Comparativo semanal</h3><p class="note">Las 4 últimas semanas del periodo filtrado.</p>${legend([['% Cobertura PDV', C.gr], ['% Asistencia Promotor', C.bl], ['% Checks vs cuota', C.or]])}${chart(labs, [{ n: '% Cobertura PDV', c: C.gr, v: S4.map(x => x.pctP) }, { n: '% Asistencia', c: C.bl, v: S4.map(x => x.pctM) }, { n: '% Checks vs cuota', c: C.or, v: S4.map(x => x.pctC) }], { pct: 1, max: 100, h: 240, vals: 1 })}</div>
+      <div class="card"><h3>🔄 Ingresos y bajas por semana</h3><p class="note">Rotación del periodo: <b>${rot.rot == null ? '—' : f1(rot.rot) + '%'}</b> (${rot.baj} bajas ÷ ${fmt(rot.hc)} HC promedio).</p>${legend([['Ingresos', C.gr], ['Bajas', C.rd]])}${chart(labs, [{ n: 'Ingresos', c: C.gr, v: sems.map(w => MV.ing.filter(x => x.f >= w.desde && x.f <= w.hasta && okI(x.idpdv)).length) }, { n: 'Bajas', c: C.rd, v: sems.map(w => MV.baj.filter(x => x.f >= w.desde && x.f <= w.hasta && okI(x.idpdv)).length) }], { bars: 1, vals: 1, h: 240 })}</div></div>`;
+    h += sect('Tiendas: medición de checks, asistencia y cobertura', '🧾') + `<p class="note">Periodo ${fdate(r.desde)} – ${fdate(r.hasta)}. Mueve la tabla a los lados o hacia abajo: encabezados e IDPDV/tienda se quedan fijos.</p>`;
+    h += `<div class="tools" data-nocap><span>Estatus cobertura:</span><select onchange="R.estC=this.value;vResumen()"><option value="">Todos</option>${['Cubierta', 'Descubierta', 'Vacante'].map(e => `<option ${R.estC === e ? 'selected' : ''}>${e} (${ce[e]})</option>`).join('')}</select><span>Estatus asistencia:</span><select onchange="R.estA=this.value;vResumen()"><option value="">Todos</option>${['Cubierta', 'Posc Adic', 'Posc Desc', 'Descubierta', 'Posc Faltante', 'Vacante'].map(e => `<option ${R.estA === e ? 'selected' : ''}>${e}</option>`).join('')}</select></div>`;
+    const rows = st.filter(z => (!R.estC || R.estC.startsWith(z.s.cob + ' (') || R.estC === z.s.cob) && (!R.estA || R.estA === z.s.asi)).map(({ x, s }) => ({ ...x, s, m: medTienda(x, dias), pe: penActual(x) }));
+    TB = {};
+    const cs = [{ h: 'IDPDV', v: q => q.id, w: 86 }, { h: 'Nombre PDV', t: 1, v: q => q.t.nombre, w: 230, r: q => `<b>${esc(q.t.nombre)}</b>` },
+      { h: 'Cadena', t: 1, v: q => q.t.cadena, r: q => `${esc(q.t.cadena)}` }, { h: 'Estado', t: 1, v: q => q.t.estado }, { h: 'Supervisor', t: 1, v: q => q.t.supervisor }, { h: 'Gerente / Líder', t: 1, v: q => q.t.gerente }, { h: 'Posc.', v: q => q.m.ps },
+      { h: 'Checks válidos', v: q => q.m.chk, hc: 'hy' }, { h: 'Cuota checks', v: q => q.m.cuota, r: q => fmt1(q.m.cuota), hc: 'hy' }, { h: '% Cobertura checks', v: q => q.m.pctCh, r: q => `<span class="bar-pct ${colPct(q.m.pctCh)}">${f1(q.m.pctCh)}%</span>`, hc: 'hy' }, { h: 'Checks faltantes', v: q => q.m.falt, r: q => q.m.falt ? `<span class="cell-red">${fmt1(q.m.falt)}</span>` : '0', hc: 'hy' }, { h: 'Checks adicionales', v: q => q.m.adic, r: q => q.m.adic ? `<span class="cell-green">+${fmt1(q.m.adic)}</span>` : '0', hc: 'hy' },
+      { h: 'Dimens. promotor', v: q => q.m.dimA, r: q => f1(q.m.dimA), hc: 'hg' }, { h: 'Prom. promotor/día', v: q => q.m.promA, r: q => f1(q.m.promA), hc: 'hg' }, { h: '% Asistencia', v: q => q.m.pctA, r: q => `<span class="bar-pct ${colPct(q.m.pctA)}">${f1(q.m.pctA)}%</span>`, hc: 'hg' }, { h: 'Dif. asistencia', v: q => q.m.difA, r: q => `<span class="${q.m.difA < -0.05 ? 'cell-red' : 'cell-green'}">${q.m.difA > 0 ? '+' : ''}${f1(q.m.difA)}</span>`, hc: 'hg' },
+      { h: 'Dimens. PDV', v: q => q.m.dimC, r: q => f1(q.m.dimC), hc: 'hd' }, { h: 'Prom. cobertura/día', v: q => q.m.promC, r: q => f1(q.m.promC), hc: 'hd' }, { h: '% Cobertura real', v: q => q.m.pctC, r: q => `<span class="bar-pct ${colPct(q.m.pctC)}">${f1(q.m.pctC)}%</span>`, hc: 'hd' }, { h: 'Dif. cobertura', v: q => q.m.difC, r: q => `<span class="${q.m.difC < -0.05 ? 'cell-red' : 'cell-green'}">${q.m.difC > 0 ? '+' : ''}${f1(q.m.difC)}</span>`, hc: 'hd' },
+      { h: 'Último check', v: q => q.m.ult, r: q => q.m.ult ? `${fdate(q.m.ult)}${diffD(r.hasta, q.m.ult) >= 2 ? ' <span title="2 o más días sin check">⚠️</span>' : ''}` : '—', hc: 'ho' },
+      { h: 'Estatus cobertura', t: 1, v: q => q.s.cob, r: q => pillx((q.s.cob === 'Cubierta' ? '🟢 ' : q.s.cob === 'Vacante' ? '🔴 ' : '🟠 ') + q.s.cob, q.s.cob === 'Cubierta' ? 'g' : q.s.cob === 'Vacante' ? 'r' : 'a'), hc: 'hp' },
+      { h: 'Estatus asistencia', t: 1, v: q => q.s.asi, r: q => pillx((ASIE[q.s.asi] || '') + ' ' + q.s.asi, ASIC[q.s.asi] || 'x'), hc: 'hp' }, { h: 'Región', t: 1, v: q => q.t.region }, { h: 'Gerencia RR.HH.', t: 1, v: q => q.t.zona_rrhh }, { h: 'RR.HH.', t: 1, v: q => q.t.rrhh }];
+    const grp = [{ t: '🏪 Tienda', span: 2, cls: 'gt' }, { t: 'Estructura', span: 5, cls: 'gt' }, { t: '✅ Medición de checks', span: 5, cls: 'gy' }, { t: '🧍 Medición de asistencia promotoría', span: 4, cls: 'gg' }, { t: '🏬 Medición de cobertura', span: 4, cls: 'gd' }, { t: '📅 Último día check', span: 1, cls: 'go' }, { t: '🚦 Estatus', span: 2, cls: 'gp' }, { t: 'Estructura', span: 3, cls: 'gt' }];
+    h += tbl('t-tiendas', cs, rows, { fix: 2, groups: grp, search: 1, csv: 1, png: 1, file: 'resumen_tiendas', titulo: 'Resumen de tiendas · cobertura, asistencia y checks', sort: 18, dir: 1, maxh: '72vh', lim: 600 });
+    $('content').innerHTML = h; drawAll();
+  });
+}
+const colorPct = p => p == null ? C.gy : p >= 90 ? C.gr : p >= 75 ? C.am : C.rd;
+
+/* ====================================================================== 2 · PENALIZACIÓN ====================================================================== */
+const penActual = x => (x.pen || []).find(p => p.act) || (x.pen || []).slice(-1)[0] || null;
+const UE = { 'Cumple Original': '✅ Check completo (≥ 7 h)', 'Abierto': '🟦 Check abierto (en curso)' };
+function racha(p) { return p.act ? p.ra : p.mx; }
+function nivelPen(p) { // 5+ rojo · 4 amarillo · 3 verde (aún con margen) · menos de 3, sin alerta
+  const d = racha(p); if (p.e === 2 || d >= 5) return 5; if (d === 4) return 4; if (d === 3) return 3; return 0;
+}
+function periodoRacha(p) { if (p.act) { const fin = addD(HOY, -1), ini = addD(HOY, -p.ra); return `${fdate(ini)} al ${fdate(fin)}`; } return p.pm || '—'; }
+function estHoy(p) { return !p.act ? '—' : p.hoy === 'C' ? '🟢 Cubierta hoy' : p.hoy === 'A' ? '🔵 Check abierto' : '🔴 Sin check hoy'; }
+const NIVC = { 5: { k: 'r', ic: '🔴', t: 'Día 5 o más', sub: 'Penalizable · cubrir hoy sin falta' }, 4: { k: 'a', ic: '🟡', t: 'Día 4', sub: 'A un día de penalizar · enviar a cubrir hoy' }, 3: { k: 'g', ic: '🟢', t: 'Día 3', sub: 'Todavía hay margen · programar cobertura' } };
+async function vPenal() {
+  await conReporte('Penalización', 'puno', async () => {
+    const meses = [...new Set(R.T.flatMap(x => (x.pen || []).map(p => p.m)))].sort(); if (!R.mes || !meses.includes(R.mes)) R.mes = meses[meses.length - 1];
+    const sel = R.T.filter(x => okT(x.t) && (!R.solo || x.t.cadena === 'Coppel')), act = R.mes === HOY.slice(0, 7);
+    const dePen = sel.map(x => ({ ...x, p: (x.pen || []).find(p => p.m === R.mes) })).filter(x => x.p);
+    const conN = dePen.map(x => ({ ...x, n: nivelPen(x.p) }));
+    const cnt = { 5: conN.filter(x => x.n === 5), 4: conN.filter(x => x.n === 4), 3: conN.filter(x => x.n === 3) };
+    const pen = dePen.filter(x => x.p.e === 2).length;
+    let h = cab('Penalización por falta de cobertura', 'Una tienda se penaliza con 5 o más días seguidos sin cobertura en el mes. Cuenta como cobertura un check dentro de rango con 420 minutos en tienda (300 los domingos con horario diferenciado); el check de un supervisor también rompe la racha.', 'puno') + barraFiltros('vPenal');
+    h += `<div class="tools"><span>Mes:</span><select onchange="R.mes=this.value;vPenal()">${meses.map(m => `<option value="${m}" ${m === R.mes ? 'selected' : ''}>${mlabel(m)}${m === HOY.slice(0, 7) ? ' (en curso)' : ''}</option>`).join('')}</select><button class="chip ${R.solo ? 'on' : ''}" onclick="R.solo=!R.solo;vPenal()">⭐ Solo Coppel (prioridad)</button><span class="muted">${fmt(dePen.length)} tiendas en el mes</span></div>`;
+    h += `<div class="kpis">${kp('Penalizadas ' + mlabel(R.mes), fmt(pen), pc1(pen, dePen.length) + ' de las tiendas', pen ? C.rd : C.gr, null, '🚫')}${kp('Día 5 o más', fmt(cnt[5].length), 'urgente', cnt[5].length ? C.rd : C.gr, null, '🔴')}${kp('Día 4', fmt(cnt[4].length), 'enviar hoy', cnt[4].length ? C.am : C.gr, null, '🟡')}${kp('Día 3', fmt(cnt[3].length), 'programar', C.gr, null, '🟢')}${kp('Cubiertas', fmt(dePen.length - cnt[5].length - cnt[4].length - cnt[3].length), 'sin alerta', C.gr, null, '✅')}</div>`;
+    // gráfica: penalizados por mes comparativo por gerencia RR.HH. (todo el periodo disponible)
+    const zonas = [...new Set(R.T.filter(x => okT(x.t) && (!R.solo || x.t.cadena === 'Coppel')).map(x => x.t.zona_rrhh).filter(Boolean))].sort(), zc = [C.or, C.bl, C.pu, C.te, C.gr];
+    const porMes = meses.map(m => zonas.map(z => R.T.filter(x => okT(x.t) && (!R.solo || x.t.cadena === 'Coppel') && x.t.zona_rrhh === z && (x.pen || []).some(p => p.m === m && p.e === 2)).length));
+    h += `<div class="card"><h3>📊 Tiendas penalizadas por mes · comparativo por gerencia RR.HH.</h3><p class="note">Todo el periodo disponible (no depende del mes elegido).</p>${legend(zonas.map((z, k) => [z.split(' ').slice(0, 3).join(' '), zc[k % 5]]))}${chart(meses.map(mlabel), zonas.map((z, k) => ({ n: z, c: zc[k % 5], v: porMes.map(q => q[k]) })), { bars: 1, stack: 1, vals: 1, h: 250, ticks: 6 })}</div>`;
+    // tarjetas de alerta expandibles
+    const fl = R.rach;
+    h += sect('Alertas de cobertura para enviar a cubrir', '🚨') + `<p class="note">Cada día RH comparte esta imagen: tiendas con racha de 3 a 5 días. Abre una tarjeta para ver sus tiendas; usa 📸 para capturar la imagen.</p>`;
+    h += `<div class="tools" data-nocap>${[['todas', 'Todas (3 a 5+)'], ['5', '🔴 Día 5+'], ['4', '🟡 Día 4'], ['3', '🟢 Día 3']].map(([k, n]) => `<button class="chip ${fl === k ? 'on' : ''}" onclick="R.rach='${k}';vPenal()">${n}</button>`).join('')}<button class="btn sm" style="margin-left:auto" onclick="capturaDescargar($('alertas-wrap'),'Alertas de cobertura · ${mlabel(R.mes)}',subFiltros(),'alertas_cobertura')">📸 Imagen de todas las alertas</button><button class="btn sm" onclick="capturaCopiar($('alertas-wrap'),'Alertas de cobertura · ${mlabel(R.mes)}',subFiltros())">📋 Copiar</button></div>`;
+    h += `<div id="alertas-wrap" class="alertas2">${[5, 4, 3].filter(n => fl === 'todas' || fl === String(n)).map(n => tarjetaAlerta(n, cnt[n], act)).join('')}</div>`;
+    const rach = []; dePen.forEach(x => (x.p.rs || []).forEach(q => rach.push({ ...x, dias: q[0], ini: q[1], fin: q[2] })));
+    rach.sort((a, b) => b.dias - a.dias);
+    h += `<details class="alc neutro"><summary><span class="alc-n">${rach.filter(q => q.dias >= 5).length}</span><div><b>📜 Mayores rachas del mes</b><small>${rach.length} rachas de 2 o más días con su periodo · ${rach.filter(q => q.dias >= 5).length} penalizables</small></div><i>▾</i></summary><div class="alc-body">${tablaRachas(rach.slice(0, 80))}</div></details>`;
+    $('content').innerHTML = h; drawAll();
+  });
+}
+function tarjetaAlerta(n, rows, act) {
+  const m = NIVC[n]; const id = 'al' + n; const lista = rows.slice().sort((a, b) => (b.t.cadena === 'Coppel') - (a.t.cadena === 'Coppel') || racha(b.p) - racha(a.p));
+  const body = lista.length ? `<div class="tw tw-in"><table class="dt st"><thead><tr><th class="fx" style="left:0;min-width:84px">IDPDV</th><th class="fx t" style="left:84px;min-width:220px">Tienda</th><th>Racha</th><th class="t">Periodo sin checks</th><th>Último check actual</th><th class="t">Estatus último check</th><th class="t">Hoy</th><th class="t">Región</th><th class="t">Gerente</th><th class="t">Supervisor</th></tr></thead><tbody>${lista.map(x => `<tr><td class="fx" style="left:0;min-width:84px"><b>${x.id}</b></td><td class="fx t" style="left:84px;min-width:220px"><b>${esc(x.t.nombre)}</b><br><small class="muted">${esc(x.t.cadena)} · ${esc(x.t.estado)}</small></td><td><span class="dchip ${m.k}">${racha(x.p)} d</span></td><td class="t">${periodoRacha(x.p)}</td><td>${fdate(x.p.uf || x.p.ul)}</td><td class="t">${UE[x.p.ue] || (x.p.ul ? '⚠️ Último check válido ' + fdate(x.p.ul) : '—')}</td><td class="t">${estHoy(x.p)}</td><td class="t">${esc(x.t.region)}</td><td class="t">${esc(x.t.gerente)}</td><td class="t">${esc(x.t.supervisor)}</td></tr>`).join('')}</tbody></table></div>` : `<div class="empty-in">Sin tiendas en este nivel 🎉</div>`;
+  return `<details class="alc ${m.k}" ${n === 5 && lista.length ? 'open' : ''}><summary><span class="alc-n">${lista.length}</span><div><b>${m.ic} ${m.t}</b><small>${m.sub}</small></div><button class="btn sm cam" data-nocap onclick="event.preventDefault();event.stopPropagation();capturaDescargar(this.closest('details'),'${m.ic} Alerta ${m.t} · ${mlabel(R.mes)}',subFiltros(),'alerta_dia_${n}')">📸</button><i>▾</i></summary><div class="alc-body">${body}</div></details>`;
+}
+function tablaRachas(rows) {
+  return `<div class="tw tw-in"><table class="dt st"><thead><tr><th class="fx" style="left:0;min-width:84px">IDPDV</th><th class="fx t" style="left:84px;min-width:220px">Tienda</th><th>Días sin cobertura</th><th>Inicio</th><th>Fin</th><th class="t">Penalizable</th><th class="t">Supervisor</th></tr></thead><tbody>${rows.map(q => `<tr><td class="fx" style="left:0;min-width:84px"><b>${q.id}</b></td><td class="fx t" style="left:84px;min-width:220px">${esc(q.t.nombre)}</td><td><span class="dchip ${q.dias >= 5 ? 'r' : q.dias >= 4 ? 'a' : 'g'}">${q.dias} d</span></td><td>${fdate(q.ini)}</td><td>${fdate(q.fin)}</td><td class="t">${q.dias >= 5 ? pillx('🔴 Sí', 'r') : pillx('No', 'x')}</td><td class="t">${esc(q.t.supervisor)}</td></tr>`).join('')}</tbody></table></div>`;
+}
+
+/* ====================================================================== 3 · DETALLE DE CHECKS ====================================================================== */
+const CKS = { cache: {}, vista: null, just: '' };
+const ERRN = { 'Cumple': 'Cumple', 'Check In Fuera Ventana': 'Entrada fuera de horario', 'Check Out Fuera Ventana': 'Salida fuera de horario', 'Error Comida': 'Error de comida', 'Tiempo Incompleto': 'Tiempo incompleto', 'Check In Fuera Rango': 'Entrada fuera de rango', 'Check Out Fuera Rango': 'Salida fuera de rango', 'No Check Salida': 'Sin check de salida', 'Equipo Duplicado': 'Equipo duplicado', 'Abierto': 'Abierto (hoy)' };
+const ERRI = { 'Cumple': '✅', 'Check In Fuera Ventana': '🕘', 'Check Out Fuera Ventana': '🕕', 'Error Comida': '🍽️', 'Tiempo Incompleto': '⏱️', 'Check In Fuera Rango': '📍', 'Check Out Fuera Rango': '📍', 'No Check Salida': '🚪', 'Equipo Duplicado': '📱', 'Abierto': '🟦' };
+const OKF = ['Cumple', 'Cumple Productividad', 'Cumple Telefonica'];
+const VALC = { 'Cumple': 'g', 'Cumple Productividad': 'b', 'Cumple Telefonica': 'b', 'No Cumple': 'r' };
+const NOJUST = ['Check In Fuera Rango', 'Check Out Fuera Rango', 'Equipo Duplicado'];   // fuera de rango / duplicado: ventas no lo justifican
+async function checksRango(d, h) { // se piden por semana y se guardan
+  const W = ventana(), blocks = W.filter(w => addD(w.ini, 6) >= d && w.ini <= h); const out = [];
+  for (const w of blocks) { if (!CKS.cache[w.ini]) { $('content').insertAdjacentHTML('afterbegin', ''); CKS.cache[w.ini] = await API.checks(w.ini, addD(w.ini, 6)); } out.push(...CKS.cache[w.ini]); }
+  return out.filter(r => r.fecha >= d && r.fecha <= h);
+}
+const esErr = r => r.estatus_check !== 'Cumple' && r.estatus_check !== 'Abierto' && r.estatus_final !== 'Otro Check';
+const justif = r => r.estatus_final === 'Cumple Productividad' || r.estatus_final === 'Cumple Telefonica';
+async function vChecks() {
+  await conReporte('Detalle de checks', 'sim', async () => {
+    const r = perRango(); $('content').innerHTML = cab('Detalle de checks', 'Cargando checks…', 'sim');
+    const rows = (await checksRango(r.desde, r.hasta)).filter(x => okI(x.idpdv));
+    const prim = rows.filter(x => x.estatus_final !== 'Otro Check' && x.estatus_check !== 'Abierto'), ok = prim.filter(x => OKF.includes(x.estatus_final));
+    const prom = new Set(prim.map(x => x.usuario)).size, prod = prim.filter(x => x.estatus_final === 'Cumple Productividad').length, vtas = prim.reduce((a, x) => a + x.registros, 0);
+    const errores = prim.filter(esErr), sinVta = errores.filter(x => !justif(x)).length, conJ = errores.filter(justif).length;
+    const mix = {}; prim.forEach(x => mix[x.estatus_check] = (mix[x.estatus_check] || 0) + 1);
+    const vistaSem = CKS.vista ? CKS.vista === 'sem' : r.dias.length > 14;
+    let h = cab('Detalle de checks', 'Cada check de cada promotor con horarios, tiempos, rangos y resultado, y la venta registrada del día para confirmar la justificación por productividad.', 'sim') + barraFiltros('vChecks') + barraPeriodo('vChecks', { dia: true });
+    h += `<div class="kpis">${kp('Checks evaluados', fmt(prim.length), 'uno por promotor y día', null, null, '🧾')}${kp('Promotores con check', fmt(prom), fdate(r.desde) + ' – ' + fdate(r.hasta), null, null, '🧍')}${kp('Cumplen (regla de pago)', pc1(ok.length, prim.length), fmt(ok.length) + ' checks', colorPct(pn(ok.length, prim.length)), null, '✅')}${kp('Con error', fmt(errores.length), `${fmt(conJ)} justificados · ${fmt(sinVta)} sin justificar`, errores.length ? C.rd : C.gr, null, '⚠️')}${kp('Cumple por productividad', pc1(prod, prim.length), fmt(prod) + ' checks', C.pu, null, '💸')}${kp('Ventas registradas', fmt(vtas), 'en días con check', null, null, '🛒')}</div>`;
+    // gráfica: promotores que checaron bien / mal (por día o por semana) + línea
+    let labs, bien, mal, linea, tit;
+    if (vistaSem) { const ws = semanasUlt4(r); labs = ws.map(w => w.w.slice(3)); const g = ws.map(w => { const x = rows.filter(y => y.fecha >= w.desde && y.fecha <= w.hasta && y.estatus_final !== 'Otro Check' && y.estatus_check !== 'Abierto'); const us = {}; x.forEach(y => { us[y.usuario] = (us[y.usuario] || false) || !OKF.includes(y.estatus_final) ? true : false; }); return { b: new Set(x.filter(y => OKF.includes(y.estatus_final)).map(y => y.usuario)).size, m: new Set(x.filter(y => !OKF.includes(y.estatus_final)).map(y => y.usuario)).size, n: x.length, c: x.filter(y => OKF.includes(y.estatus_final)).length }; }); bien = g.map(q => q.b); mal = g.map(q => q.m); linea = g.map(q => pn(q.c, q.n)); tit = 'Vista semanal · últimas 4 semanas del periodo'; }
+    else { labs = r.dias.map(d => d.slice(8) + '/' + d.slice(5, 7)); const g = r.dias.map(d => { const x = prim.filter(y => y.fecha === d); return { b: new Set(x.filter(y => OKF.includes(y.estatus_final)).map(y => y.usuario)).size, m: new Set(x.filter(y => !OKF.includes(y.estatus_final)).map(y => y.usuario)).size }; }); bien = g.map(q => q.b); mal = g.map(q => q.m); linea = g.map(q => q.b + q.m); tit = 'Vista diaria'; }
+    h += `<div class="grid g2"><div class="card"><div class="card-h"><h3>👥 Promotores que checaron bien y mal</h3><span class="seg sm" data-nocap><button class="${!vistaSem ? 'on' : ''}" onclick="CKS.vista='dia';vChecks()">Diaria</button><button class="${vistaSem ? 'on' : ''}" onclick="CKS.vista='sem';vChecks()">Semanal</button></span></div><p class="note">${tit}. ${vistaSem ? 'Línea: % de checks que cumplen.' : 'Línea: total de promotores con check.'}</p>${legend([['Checaron bien', C.gr], ['Checaron mal', C.rd], [vistaSem ? '% cumplen' : 'Total promotores', C.dk]])}${chart(labs, [{ n: 'Checaron bien', c: C.gr, v: bien }, { n: 'Checaron mal', c: C.rd, v: mal }], { bars: 1, stack: 1, vals: 1, h: 250, ticks: 16, lines: [{ n: vistaSem ? '% cumplen' : 'Total', c: C.dk, v: linea, dash: '' }], pct2: vistaSem, max: vistaSem ? undefined : undefined })}</div>
+      <div class="card"><h3>🧩 Resultado del check</h3><p class="note">Antes de aplicar productividad o Telefónica.</p>${hbars(Object.entries(mix).sort((a, b) => b[1] - a[1]).map(([k, v]) => ({ n: (ERRI[k] || '') + ' ' + (ERRN[k] || k), v, c: k === 'Cumple' ? C.gr : NOJUST.includes(k) ? C.rd : C.am, s: pc1(v, prim.length) })), C.am)}</div></div>`;
+    // top / lista de promotores con error
+    const just = CKS.just; const errF = errores.filter(x => !just || (just === 'con' ? justif(x) : !justif(x)));
+    h += sect('Promotores con errores a corregir', '🛠️') + `<div class="tools" data-nocap>${[['', 'Todos los errores'], ['sin', '🔴 Sin justificación'], ['con', '🟢 Con justificación (venta)']].map(([k, n]) => `<button class="chip ${just === k ? 'on' : ''}" onclick="CKS.just='${k}';vChecks()">${n}</button>`).join('')}<span class="muted">${r.dias.length === 1 ? 'Día elegido: todos los promotores con error.' : 'Varios días: top 10 con más errores del periodo.'} Fuera de rango o equipo duplicado no se justifican con venta: hay que mandarlos a otra tienda.</span></div>`;
+    TB = {};
+    if (r.dias.length === 1) {
+      const lst = errF.slice().sort((a, b) => (tienda(a.idpdv) || {}).supervisor?.localeCompare((tienda(b.idpdv) || {}).supervisor || '') || a.nombre.localeCompare(b.nombre));
+      h += tbl('t-err', [{ h: 'Usuario', t: 1, v: q => q.usuario, w: 110 }, { h: 'Promotor', t: 1, v: q => q.nombre, w: 220, r: q => `<b>${esc(q.nombre)}</b>` }, { h: 'IDPDV', v: q => q.idpdv }, { h: 'Tienda', t: 1, v: q => (tienda(q.idpdv) || {}).nombre || '' }, { h: 'Resultado', t: 1, v: q => ERRN[q.estatus_check] || q.estatus_check, r: q => pillx((ERRI[q.estatus_check] || '') + ' ' + (ERRN[q.estatus_check] || q.estatus_check), NOJUST.includes(q.estatus_check) ? 'r' : 'a') },
+        { h: 'Ventas', v: q => q.registros, r: q => q.registros ? `<b>${q.registros}</b>` : '0' }, { h: 'Justificación', t: 1, v: q => justif(q) ? 'Con venta' : NOJUST.includes(q.estatus_check) ? 'No aplica' : 'Sin venta', r: q => justif(q) ? pillx('🟢 Con venta', 'g') : NOJUST.includes(q.estatus_check) ? pillx('⛔ No aplica: enviar a otra tienda', 'r') : pillx('🔴 Sin venta', 'r') }, { h: 'Supervisor', t: 1, v: q => (tienda(q.idpdv) || {}).supervisor }, { h: 'Gerente', t: 1, v: q => (tienda(q.idpdv) || {}).gerente }], lst, { fix: 2, search: 1, csv: 1, png: 1, file: 'promotores_con_error', titulo: 'Promotores con error · ' + fdate(r.desde), sort: -1, maxh: '60vh', lim: 500 });
+    } else {
+      const g = new Map(); errF.forEach(x => { if (!g.has(x.usuario)) g.set(x.usuario, []); g.get(x.usuario).push(x); });
+      const dias_ = new Map(); prim.forEach(x => dias_.set(x.usuario, (dias_.get(x.usuario) || 0) + 1));
+      const top = [...g].map(([u, v]) => { const c = {}; v.forEach(x => c[x.estatus_check] = (c[x.estatus_check] || 0) + 1); return { u, n: v[0].nombre, e: v.length, d: dias_.get(u) || v.length, c, t: v[0].idpdv, j: v.filter(justif).length }; }).sort((a, b) => b.e - a.e || b.e / b.d - a.e / a.d).slice(0, 10);
+      h += top.length ? `<div class="toplist" id="top-err">${top.map((q, k) => `<div class="tp-row"><span class="tp-n ${k < 3 ? 'hot' : ''}">${k + 1}</span><div class="tp-m"><b>${esc(q.n)}</b><small>${esc(q.u)} · ${esc((tienda(q.t) || {}).nombre || '')} · ${esc((tienda(q.t) || {}).supervisor || '')}</small><div class="tp-s">${Object.entries(q.c).sort((a, b) => b[1] - a[1]).map(([k2, v]) => `<span class="pill ${NOJUST.includes(k2) ? 'r' : 'a'}">${ERRI[k2] || ''} ${v} ${esc((ERRN[k2] || k2).toLowerCase())}</span>`).join(' ')}${q.j ? ` <span class="pill g">💸 ${q.j} justificados</span>` : ''}</div></div><div class="tp-v"><b>${q.e}/${q.d}</b><small>errores / checks</small></div></div>`).join('')}</div><div class="tools" data-nocap><button class="btn sm" onclick="capturaDescargar($('top-err'),'Top 10 promotores con más errores',subFiltros(),'top_errores')">📸 Imagen</button><button class="btn sm" onclick="capturaCopiar($('top-err'),'Top 10 promotores con más errores',subFiltros())">📋 Copiar</button></div>` : `<div class="card empty"><img src="${img('triunfo')}" alt="">Sin errores en este periodo con ese filtro 🎉</div>`;
+    }
+    // tabla de detalle
+    const sel = rows.slice().sort((a, b) => b.fecha.localeCompare(a.fecha) || (a.hora_in || '').localeCompare(b.hora_in || ''));
+    h += sect('Detalle de cada check', '🧾') + `<div class="tools" data-nocap><select onchange="CKS.est=this.value;vChecks()"><option value="">Todos los resultados</option>${Object.keys(ERRN).map(k => `<option value="${k}" ${CKS.est === k ? 'selected' : ''}>${ERRI[k]} ${ERRN[k]}</option>`).join('')}</select></div>`;
+    h += tbl('t-checks', [{ h: 'Fecha', v: q => q.fecha, r: q => fdate(q.fecha), w: 82 }, { h: 'Usuario', t: 1, v: q => q.usuario, w: 108 }, { h: 'Promotor', t: 1, v: q => q.nombre, w: 190, r: q => `<b>${esc(q.nombre)}</b>` }, { h: 'IDPDV', v: q => q.idpdv }, { h: 'Tienda', t: 1, v: q => (tienda(q.idpdv) || {}).nombre || '' },
+      { h: 'Entrada', v: q => q.hora_in, r: q => hh(q.hora_in) }, { h: 'Comida', v: q => q.hora_com_in, r: q => hh(q.hora_com_in) + ' – ' + hh(q.hora_com_out) }, { h: 'Salida', v: q => q.hora_out, r: q => hh(q.hora_out) }, { h: 'En tienda (min)', v: q => q.tiempo_ub, r: q => `<span class="${q.tiempo_ub < 420 ? 'cell-amber' : ''}">${fmt(q.tiempo_ub)}</span>` }, { h: 'Comida (min)', v: q => q.tiempo_com, r: q => f1(q.tiempo_com) },
+      { h: 'Rango entrada', t: 1, v: q => q.rango_in, r: q => /fuera/i.test(q.rango_in || '') ? `<span class="cell-red">📍 ${esc(q.rango_in)}</span>` : esc(q.rango_in || '—') }, { h: 'Rango salida', t: 1, v: q => q.rango_out, r: q => /fuera/i.test(q.rango_out || '') ? `<span class="cell-red">📍 ${esc(q.rango_out)}</span>` : esc(q.rango_out || '—') },
+      { h: 'Resultado', t: 1, v: q => ERRN[q.estatus_check] || q.estatus_check, r: q => pillx((ERRI[q.estatus_check] || '') + ' ' + (ERRN[q.estatus_check] || q.estatus_check), q.estatus_check === 'Cumple' ? 'g' : q.estatus_check === 'Abierto' ? 'b' : NOJUST.includes(q.estatus_check) ? 'r' : 'a') }, { h: 'Estatus final', t: 1, v: q => q.estatus_final, r: q => pillx(q.estatus_final, VALC[q.estatus_final] || 'x') },
+      { h: 'Ventas', v: q => q.registros, r: q => q.registros ? `<b>${q.registros}</b> <small class="muted">T${q.temm} P${q.porta} Pos${q.pospago} Pre${q.prepago}</small>` : '0' }, { h: 'Justifica', t: 1, v: q => justif(q) ? 'Con venta' : '', r: q => q.estatus_final === 'Cumple Productividad' ? pillx('💸 Con venta', 'b') : esErr(q) && !justif(q) ? pillx(NOJUST.includes(q.estatus_check) ? '⛔ No aplica' : '🔴 Sin venta', 'r') : '' },
+      { h: 'Supervisor', t: 1, v: q => (tienda(q.idpdv) || {}).supervisor }, { h: 'Gerente', t: 1, v: q => (tienda(q.idpdv) || {}).gerente }, { h: 'RR.HH.', t: 1, v: q => (tienda(q.idpdv) || {}).rrhh }].map(c => c), sel.filter(q => !CKS.est || q.estatus_check === CKS.est), { fix: 3, search: 1, csv: 1, png: 1, file: 'detalle_checks', titulo: 'Detalle de checks', sort: 0, dir: -1, maxh: '70vh', lim: 600 });
+    $('content').innerHTML = h; drawAll();
+  });
+}
+const hh = s => s ? s.slice(0, 5) : '—';
+
+/* ====================================================================== 4 · HC ====================================================================== */
+const ACTC = { 'Activo': 'g', 'Descanso / falta / error': 'a', 'Posible baja': 'r', 'Baja': 'x', 'Sin check': 'x' };
+const ACTI = { 'Activo': '🟢', 'Descanso / falta / error': '🟠', 'Posible baja': '🔴', 'Baja': '⚫', 'Sin check': '⚪', 'Vacaciones': '🏖️', 'Incapacidad (IMSS)': '🏥', 'Permiso especial': '📝', 'Tema médico (particular)': '🩺', 'No localizado': '❓' };
+const ANTB = [['< 2 sem', 0, 13, C.rd], ['2–4 sem', 14, 27, C.am], ['1–3 meses', 28, 89, C.ye], ['3–6 meses', 90, 179, C.te], ['6 m – 1 año', 180, 364, C.bl], ['1–2 años', 365, 729, C.pu], ['2–3 años', 730, 1094, C.gr], ['3+ años', 1095, 1e9, C.dk]];
+const antLabel = d => d == null ? '—' : (ANTB.find(b => d >= b[1] && d <= b[2]) || [''])[0];
+function tipoIngreso(h, ant) { if (h.tipo_ingreso === 'Reingreso') return 'Reingreso'; if (ant == null) return 'Normal'; if (ant <= 14) return 'Nuevo ingreso'; if (ant <= 28) return 'Adaptación'; return 'Normal'; }
+const TIPC = { 'Nuevo ingreso': ['r', '🆕'], 'Reingreso': ['b', '🔁'], 'Adaptación': ['a', '🌱'], 'Normal': ['x', ''] };
+function estadoVivo(h) {
+  const baja = R.bajasLive.get(h.usuario); if (baja && (!h.fecha_alta || baja >= h.fecha_alta)) return { e: 'Baja', det: 'Baja ' + fdate(baja) };
+  const au = S.vigentes.find(v => v.usuario === h.usuario); if (au) return { e: au.motivo, det: `${au.dias} d · regresa ${fdate(au.regreso)}`, aus: au };
+  if (h.ausencia_motivo && h.ausencia_regreso && h.ausencia_regreso > HOY) return { e: h.ausencia_motivo, det: `${h.ausencia_dias} d · regresa ${fdate(h.ausencia_regreso)}`, aus: { motivo: h.ausencia_motivo, inicio: addD(h.ausencia_regreso, -h.ausencia_dias), regreso: h.ausencia_regreso } };
+  const d = h.ultimo_check ? diffD(HOY, h.ultimo_check) : null;
+  if (d == null) return { e: 'Sin check', det: '' }; if (d <= 0) return { e: 'Activo', det: '' }; if (d === 1) return { e: 'Descanso / falta / error', det: '1 día sin check' }; if (d > 21) return { e: 'Baja', det: d + ' días sin check · sin baja registrada' }; return { e: 'Posible baja', det: d + ' días sin check' };
+}
+async function vHC() {
+  await conReporte('HC', 'mochila', async () => {
+    if (!R.vivo) { try { S.vigentes = await API.vigentes(); } catch (e) { } R.vivo = true; }
+    const rows = R.hc.filter(h => okI(h.ultimo_idpdv)).map(h => { const v = estadoVivo(h), u = R.uc[h.usuario] || {}, t = tienda(h.ultimo_idpdv), ant = h.fecha_alta ? diffD(HOY, h.fecha_alta) : null; return { ...h, v, u, t: t || {}, ant, tipo: tipoIngreso(h, ant), antL: antLabel(ant), alerta: S.alertas.find(a => a.usuario === h.usuario) }; });
+    const vis = rows.filter(q => R.incBaja || q.v.e !== 'Baja'), cnt = {}; vis.forEach(q => cnt[q.v.e] = (cnt[q.v.e] || 0) + 1);
+    const ausN = vis.filter(q => !['Activo', 'Descanso / falta / error', 'Posible baja', 'Baja', 'Sin check'].includes(q.v.e)), nuevos = vis.filter(q => q.tipo === 'Nuevo ingreso').length, adap = vis.filter(q => q.tipo === 'Adaptación').length;
+    let h = cab('HC · plantilla de promotoría', 'Promotores y cubre-descansos con su último check y estatus. El estatus se actualiza en vivo con las ausencias y bajas que RH captura en Posibles bajas.', 'mochila') + barraFiltros('vHC');
+    h += `<div class="tools"><button class="chip ${R.incBaja ? 'on' : ''}" onclick="R.incBaja=!R.incBaja;vHC()">Incluir bajas</button><span class="muted">${fmt(vis.length)} promotores · publicado ${esc(R.meta.generado)}</span></div>`;
+    h += `<div class="kpis">${kp('Plantilla', fmt(vis.filter(q => q.v.e !== 'Baja').length), 'sin bajas', null, null, '👥')}${kp('Activos hoy', fmt(cnt['Activo'] || 0), pc1(cnt['Activo'] || 0, vis.length), C.gr, null, '🟢')}${kp('Descanso / falta', fmt(cnt['Descanso / falta / error'] || 0), 'último check ayer', C.am, null, '🟠')}${kp('Posible baja', fmt(cnt['Posible baja'] || 0), '2 o más días sin check', C.rd, "ir('bandeja')", '🔴')}${kp('Con ausencia', fmt(ausN.length), 'vacaciones, incapacidad…', C.bl, "ir('vigentes')", '🏖️')}${kp('Nuevo ingreso', fmt(nuevos), 'menos de 2 semanas · arranque rápido', C.rd, null, '🆕')}${kp('Adaptación', fmt(adap), '2 a 4 semanas', C.am, null, '🌱')}</div>`;
+    h += `<div class="grid g2"><div class="card"><h3>🚦 Estatus de la plantilla</h3>${donut(Object.entries(cnt).map(([k, v]) => ({ n: (ACTI[k] || '') + ' ' + k, v, c: k === 'Activo' ? C.gr : k === 'Posible baja' ? C.rd : k === 'Descanso / falta / error' ? C.am : k === 'Baja' ? C.gy : C.bl })), { sub: 'promotores' })}</div>
+      <div class="card"><h3>⏳ Antigüedad</h3><p class="note">Menos de 2 semanas = nuevo ingreso: requiere arranque rápido (visita del supervisor, básicos y capacitación práctica).</p>${hbars(ANTB.map(b => ({ n: b[0], v: vis.filter(q => q.ant != null && q.ant >= b[1] && q.ant <= b[2]).length, c: b[3] })), C.pu)}</div></div>`;
+    TB = {};
+    h += sect('Promotores', '👥') + tbl('t-hc', [{ h: 'Usuario', t: 1, v: q => q.usuario, w: 112 }, { h: 'Nombre', t: 1, v: q => q.nombre, w: 210, r: q => `<b>${esc(q.nombre)}</b>` }, { h: 'Estatus', t: 1, v: q => q.v.e, w: 190, r: q => `<div class="est-c">${pillx((ACTI[q.v.e] || '🔵') + ' ' + esc(q.v.e), ACTC[q.v.e] || 'b')}${q.alerta && can('alertas', 'editar') ? `<button class="btn sm primary" onclick="resolverDesdeHC(${q.alerta.id})">Resolver</button>` : ''}${q.v.det ? `<small class="muted">${esc(q.v.det)}</small>` : ''}</div>` },
+      { h: 'Tipo de ingreso', t: 1, v: q => q.tipo, r: q => pillx((TIPC[q.tipo][1] + ' ' + q.tipo).trim(), TIPC[q.tipo][0]) }, { h: 'Antigüedad', t: 1, v: q => q.ant, r: q => q.ant == null ? '—' : `<b>${esc(q.antL)}</b><br><small class="muted">${Math.floor(q.ant / 7)} sem · ${q.ant} d</small>` },
+      { h: 'Fecha de ingreso', v: q => q.fecha_alta, r: q => fdate(q.fecha_alta) }, { h: 'Baja anterior', v: q => q.tipo_ingreso === 'Reingreso' ? q.baja_final : null, r: q => q.tipo_ingreso === 'Reingreso' ? fdate(q.baja_final) : '—' },
+      { h: 'Último check', v: q => q.ultimo_check, r: q => fdate(q.ultimo_check) + (q.u.hora_in ? `<br><small class="muted">${hh(q.u.hora_in)} – ${hh(q.u.hora_out)}</small>` : '') }, { h: 'Tipo de check', t: 1, v: q => q.rol, r: q => esc(q.rol || '—') + (q.u.estatus_check ? `<br><small class="muted">${esc((ERRI[q.u.estatus_check] || '') + ' ' + (ERRN[q.u.estatus_check] || q.u.estatus_check))}</small>` : '') },
+      { h: 'Ausencia', t: 1, v: q => q.v.aus ? q.v.aus.motivo : '', r: q => q.v.aus ? `${esc(q.v.aus.motivo)}<br><small class="muted">${fdate(q.v.aus.inicio)} → ${fdate(q.v.aus.regreso)}</small>` : '—' },
+      { h: 'Tienda (último check)', t: 1, v: q => q.t.nombre || '', r: q => esc(q.t.nombre || '—') }, { h: 'Cadena', t: 1, v: q => q.t.cadena }, { h: 'Estado', t: 1, v: q => q.t.estado }, { h: 'Región', t: 1, v: q => q.t.region }, { h: 'Gerente', t: 1, v: q => q.t.gerente }, { h: 'Supervisor', t: 1, v: q => q.t.supervisor }, { h: 'RR.HH.', t: 1, v: q => q.t.rrhh }, { h: 'Empresa', t: 1, v: q => q.empresa }],
+      vis, { fix: 3, search: 1, csv: 1, png: 1, file: 'hc_promotores', titulo: 'HC · promotores', sort: 2, dir: 1, maxh: '72vh', lim: 600 });
+    $('content').innerHTML = h; drawAll();
+  });
+}
+function resolverDesdeHC(id) { S.view = 'bandeja'; nav(); render(); setTimeout(() => abrir('aus', id), 80); }
+
+/* >>> 04_gestion.js */
 /* ====================================================================== estado y UI ====================================================================== */
-const S = { me: null, cat: null, alertas: [], vigentes: [], view: 'bandeja', f: { q: '', estado: '', rrhh: '', min: 2 } };
+const S = { me: null, cat: null, alertas: [], vigentes: [], view: 'resumen', f: { q: '', min: 2 } };
 const can = (mod, acc) => !!(S.me && S.me.permisos[mod] && S.me.permisos[mod][acc]);
 const tienda = id => (S.cat && S.cat.tiendas[id]) || null;
 const colorDias = d => d >= 5 ? 'd5' : d >= 3 ? 'd3' : 'd2';
@@ -109,6 +540,7 @@ const VISTAS = [
   { k: 'penal', ic: '⚠️', n: 'Penalización', mod: 'reportes', f: vPenal },
   { k: 'checks', ic: '✅', n: 'Detalle de checks', mod: 'reportes', f: vChecks },
   { k: 'hc', ic: '👥', n: 'HC', mod: 'reportes', f: vHC },
+  { k: 'movs', ic: '🔄', n: 'Ingresos y bajas', mod: 'reportes', f: vMovs },
   { k: 'sep', n: 'Gestión', sep: true },
   { k: 'bandeja', ic: '🚨', n: 'Posibles bajas', mod: 'alertas', f: vBandeja },
   { k: 'vigentes', ic: '🩺', n: 'Ausencias vigentes', mod: 'ausencias', f: vVigentes },
@@ -126,20 +558,16 @@ const cab = (t, sub, m) => `<div class="page-head"><div><h2>${t}${DEMO ? '<span 
 
 /* ---------- bandeja ---------- */
 function filtradas() {
-  const q = S.f.q.trim().toLowerCase();
+  const q = norm(S.f.q);
   return S.alertas.filter(a => a.dias >= S.f.min).filter(a => {
-    const t = tienda(a.idpdv);
-    if (S.f.estado && (!t || t.estado !== S.f.estado)) return false;
-    if (S.f.rrhh && (!t || t.rrhh !== S.f.rrhh)) return false;
-    if (q && !(`${a.nombre} ${a.usuario} ${t ? t.nombre + ' ' + t.supervisor : ''}`.toLowerCase().includes(q))) return false;
+    const t = tienda(a.idpdv); if (!okT(t)) return false;
+    if (q && !norm(`${a.nombre} ${a.usuario} ${t ? t.nombre + ' ' + t.supervisor : ''}`).includes(q)) return false;
     return true;
   });
 }
 function vBandeja() {
   const todas = S.alertas, f = filtradas();
   const n = (min, max = 9999) => todas.filter(a => a.dias >= min && a.dias <= max).length;
-  const estados = [...new Set(todas.map(a => (tienda(a.idpdv) || {}).estado).filter(Boolean))].sort();
-  const rrhhs = [...new Set(todas.map(a => (tienda(a.idpdv) || {}).rrhh).filter(Boolean))].sort();
   const reg = S.vigentes.filter(v => diffD(v.regreso, HOY) <= 3).length;
   let h = cab('Posibles bajas', 'Promotores que llevan 2 o más días sin check y no tienen una ausencia registrada. Resuelve cada caso aquí mismo: registra la ausencia, confirma la baja o márcalo como error de asistencia.', 'guino');
   h += `<div class="kpis">
@@ -147,16 +575,12 @@ function vBandeja() {
     <div class="kpi click ${S.f.min === 3 ? 'sel' : ''}" onclick="S.f.min=3;vBandeja()"><div class="l">3 o más días</div><div class="v" style="color:var(--orange-n)">${fmt(n(3))}</div><div class="s">prioridad media</div></div>
     <div class="kpi click ${S.f.min === 5 ? 'sel' : ''}" onclick="S.f.min=5;vBandeja()"><div class="l">5 o más días</div><div class="v" style="color:var(--red)">${fmt(n(5))}</div><div class="s">prioridad alta</div></div>
     <div class="kpi"><div class="l">Con ausencia vigente</div><div class="v" style="color:var(--blue)">${fmt(S.vigentes.length)}</div><div class="s">${fmt(reg)} regresan en ≤ 3 días</div></div></div>`;
-  h += `<div class="tools"><input type="search" id="q" placeholder="Buscar nombre, usuario, tienda o supervisor…" value="${esc(S.f.q)}">
-    <select id="fe"><option value="">Todos los estados</option>${estados.map(e => `<option ${S.f.estado === e ? 'selected' : ''}>${esc(e)}</option>`).join('')}</select>
-    ${rrhhs.length > 1 ? `<select id="fr"><option value="">Todo RR.HH.</option>${rrhhs.map(e => `<option ${S.f.rrhh === e ? 'selected' : ''}>${esc(e)}</option>`).join('')}</select>` : ''}
-    <span class="muted">${fmt(f.length)} caso${f.length === 1 ? '' : 's'}</span></div>`;
+  h += barraFiltros('vBandeja', S.alertas.map(a => tienda(a.idpdv)).filter(Boolean), ['zona_rrhh', 'rrhh', 'supervisor', 'region', 'cadena']);
+  h += `<div class="tools"><input type="search" id="q" placeholder="🔎 Buscar nombre, usuario, tienda o supervisor…" value="${esc(S.f.q)}"><span class="muted">${fmt(f.length)} caso${f.length === 1 ? '' : 's'}</span></div>`;
   if (!f.length) h += `<div class="card empty"><img src="${img('triunfo')}" alt="">Sin casos pendientes con estos filtros. ¡Todo al día!</div>`;
   else h += `<div class="list"><div class="al head"><span>Promotor</span><span>Tienda</span><span>Sin check</span><span>Último check</span><span>Últimos 90 días</span><span></span></div>${f.slice(0, 300).map(filaAlerta).join('')}</div>${f.length > 300 ? '<p class="muted">Mostrando 300; usa los filtros para acotar.</p>' : ''}`;
   $('content').innerHTML = h;
   $('q').oninput = e => { S.f.q = e.target.value; clearTimeout(vBandeja.t); vBandeja.t = setTimeout(() => { const p = e.target.selectionStart; vBandeja(); const q = $('q'); q.focus(); q.setSelectionRange(p, p); }, 250); };
-  $('fe').onchange = e => { S.f.estado = e.target.value; vBandeja(); };
-  if ($('fr')) $('fr').onchange = e => { S.f.rrhh = e.target.value; vBandeja(); };
 }
 function filaAlerta(a) {
   const t = tienda(a.idpdv), ant = a.ingreso ? diffD(HOY, a.ingreso) : null;
@@ -178,12 +602,17 @@ function filaAlerta(a) {
 
 /* ---------- ausencias vigentes ---------- */
 function vVigentes() {
-  const rows = S.vigentes.map(v => ({ ...v, faltan: diffD(v.regreso, HOY), t: tienda(v.idpdv) })).sort((a, b) => a.faltan - b.faltan);
+  const todos = S.vigentes.map(v => ({ ...v, faltan: diffD(v.regreso, HOY), t: tienda(v.idpdv) || {} }));
+  const rows = todos.filter(v => okT(v.t.nombre ? v.t : null)).sort((a, b) => a.faltan - b.faltan);
   const porMot = {}; rows.forEach(r => porMot[r.motivo] = (porMot[r.motivo] || 0) + 1);
-  let h = cab('Ausencias vigentes', 'Promotores con ausencia registrada que sigue vigente hoy, y cuándo regresan.', 'mochila');
-  h += `<div class="kpis"><div class="kpi"><div class="l">Vigentes</div><div class="v">${fmt(rows.length)}</div><div class="s">hoy</div></div>${Object.entries(porMot).map(([m, c]) => `<div class="kpi"><div class="l">${esc(m)}</div><div class="v">${c}</div></div>`).join('')}<div class="kpi"><div class="l">Regresan en ≤ 3 días</div><div class="v" style="color:var(--orange-n)">${rows.filter(r => r.faltan <= 3).length}</div></div></div>`;
-  h += rows.length ? `<div class="tbl-wrap"><table class="dt"><thead><tr><th>Promotor</th><th>Motivo</th><th>Inicio</th><th>Días</th><th>Regresa</th><th>Faltan</th><th>Tienda</th></tr></thead><tbody>${rows.map(r => `<tr><td><b>${esc(r.nombre)}</b><br><span class="muted">${esc(r.usuario)}</span></td><td>${esc(r.motivo)}</td><td>${fdate(r.inicio)}</td><td>${r.dias}</td><td>${fdate(r.regreso)}</td><td><span class="pill ${r.faltan <= 0 ? 'r' : r.faltan <= 3 ? 'a' : 'x'}">${r.faltan <= 0 ? 'hoy' : r.faltan + ' d'}</span></td><td>${r.t ? esc(r.t.nombre) : '—'}</td></tr>`).join('')}</tbody></table></div>` : `<div class="card empty">No hay ausencias vigentes.</div>`;
-  $('content').innerHTML = h;
+  const MI = { 'Vacaciones': '🏖️', 'Incapacidad (IMSS)': '🏥', 'Permiso especial': '📝', 'Tema médico (particular)': '🩺', 'No localizado': '❓' };
+  let h = cab('Ausencias vigentes', 'Promotores con ausencia registrada que sigue vigente hoy, y cuándo regresan.', 'mochila') + barraFiltros('vVigentes', todos.map(v => v.t).filter(t => t.nombre), ['zona_rrhh', 'rrhh', 'supervisor', 'region', 'cadena']);
+  h += `<div class="kpis"><div class="kpi"><div class="l">🩺 Vigentes</div><div class="v">${fmt(rows.length)}</div><div class="s">hoy</div></div>${Object.entries(porMot).map(([m, c]) => `<div class="kpi"><div class="l">${MI[m] || ''} ${esc(m)}</div><div class="v">${c}</div></div>`).join('')}<div class="kpi"><div class="l">⏰ Regresan en ≤ 3 días</div><div class="v" style="color:var(--orange-n)">${rows.filter(r => r.faltan <= 3).length}</div></div></div>`;
+  TB = {};
+  h += tbl('t-vig', [{ h: 'Usuario', t: 1, v: r => r.usuario, w: 112 }, { h: 'Promotor', t: 1, v: r => r.nombre, w: 210, r: r => `<b>${esc(r.nombre)}</b>` }, { h: 'Motivo', t: 1, v: r => r.motivo, r: r => `<span class="pill b">${MI[r.motivo] || ''} ${esc(r.motivo)}</span>` }, { h: 'Inicio', v: r => r.inicio, r: r => fdate(r.inicio) }, { h: 'Días', v: r => r.dias }, { h: 'Regresa', v: r => r.regreso, r: r => fdate(r.regreso) },
+    { h: 'Faltan', v: r => r.faltan, r: r => `<span class="pill ${r.faltan <= 0 ? 'r' : r.faltan <= 3 ? 'a' : 'x'}">${r.faltan <= 0 ? '⏰ hoy' : r.faltan + ' d'}</span>` }, { h: 'Tienda', t: 1, v: r => r.t.nombre || '' }, { h: 'Estado', t: 1, v: r => r.t.estado }, { h: 'Supervisor', t: 1, v: r => r.t.supervisor }, { h: 'Gerente', t: 1, v: r => r.t.gerente }, { h: 'Gerencia RR.HH.', t: 1, v: r => r.t.zona_rrhh }, { h: 'RR.HH.', t: 1, v: r => r.t.rrhh }],
+    rows, { fix: 2, search: 1, csv: 1, png: 1, file: 'ausencias_vigentes', titulo: 'Ausencias vigentes', sort: 6, dir: 1, maxh: '72vh' });
+  $('content').innerHTML = h; drawAll();
 }
 
 /* ---------- acciones (ventana) ---------- */
@@ -237,363 +666,11 @@ function abrir(tipo, id) {
   };
 }
 
-/* ---------- helpers de gráficos y tablas ---------- */
-const sect=t=>`<div class="section-title"><span class="bar"></span><h3>${t}</h3></div>`;
-function kpi(l,v,sub,col){return `<div class="etiqueta"><div class="et-lbl">${l}</div><div class="et-val" style="${col?'color:'+col:''}">${v}</div><div class="et-sub">${sub||'&nbsp;'}</div></div>`}
-function legend(items){return `<div class="leg">${items.map(([n,c])=>`<span><b style="background:${c}"></b>${n}</span>`).join('')}</div>`}
-function niceMax(v){if(v<=0)return 1;const p=Math.pow(10,Math.floor(Math.log10(v)));const m=v/p;return (m<=1?1:m<=2?2:m<=5?5:10)*p}
-function chart(labels,series,o={}){
- const W=o.w||760,H=o.h||230,L=44,R=12,T=14,B=26,pw=W-L-R,ph=H-T-B,n=labels.length;
- let mx=o.max!=null?o.max:niceMax(Math.max(1e-9,...series.flatMap(s=>s.v.filter(x=>x!=null))));
- if(o.stack){const tot=labels.map((_,i)=>series.reduce((a,s)=>a+(s.v[i]||0),0));mx=o.max!=null?o.max:niceMax(Math.max(...tot))}
- const y=v=>T+ph-(v/mx)*ph, xs=i=>L+(n<=1?pw/2:i*pw/(n-1)), bw=pw/n;
- let g='';
- for(let k=0;k<=4;k++){const v=mx*k/4;g+=`<line class="g" x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}"/><text x="${L-6}" y="${y(v)+3}" text-anchor="end">${o.pct?Math.round(v)+'%':fmt(v)}</text>`}
- const every=Math.ceil(n/(o.ticks||12));
- labels.forEach((l,i)=>{if(i%every===0)g+=`<text x="${o.bars?L+i*bw+bw/2:xs(i)}" y="${H-8}" text-anchor="middle">${esc(l)}</text>`});
- if(o.bars){
-  const ns=o.stack?1:series.length, w=Math.max(2,bw*0.7/ns);
-  labels.forEach((_,i)=>{let acc=0;series.forEach((s,j)=>{const v=s.v[i]||0;const x=o.stack?L+i*bw+bw*0.15:L+i*bw+bw*0.15+j*w;const h=v/mx*ph;const yy=o.stack?T+ph-(acc+v)/mx*ph:T+ph-h;
-   g+=`<rect x="${x}" y="${yy}" width="${o.stack?bw*0.7:w}" height="${Math.max(0,h)}" fill="${s.c}" rx="2"><title>${esc(labels[i])} · ${esc(s.n)}: ${o.pct?v.toFixed(1)+'%':fmt(v)}</title></rect>`;acc+=v})});
-  (o.lines||[]).forEach(s=>{let d='';s.v.forEach((v,i)=>{if(v!=null)d+=(d?'L':'M')+(L+i*bw+bw/2)+','+y(v)});g+=`<path d="${d}" fill="none" stroke="${s.c}" stroke-width="2.2"/>`;s.v.forEach((v,i)=>{if(v!=null)g+=`<circle cx="${L+i*bw+bw/2}" cy="${y(v)}" r="3" fill="${s.c}"><title>${esc(labels[i])} · ${esc(s.n)}: ${o.pct2?v.toFixed(1)+'%':fmt(v)}</title></circle>`})});
- }else series.forEach(s=>{let d='';s.v.forEach((v,i)=>{if(v!=null)d+=(d?'L':'M')+xs(i)+','+y(v)});g+=`<path d="${d}" fill="none" stroke="${s.c}" stroke-width="2.4" stroke-linejoin="round"/>`;
-  if(n<=45)s.v.forEach((v,i)=>{if(v!=null)g+=`<circle cx="${xs(i)}" cy="${y(v)}" r="2.6" fill="${s.c}"><title>${esc(labels[i])} · ${esc(s.n)}: ${o.pct?v.toFixed(1)+'%':fmt(v)}</title></circle>`})});
- return `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img">${g}</svg>`;
-}
-function donut(items){ // [{n,v,c}]
- const tot=items.reduce((a,b)=>a+b.v,0)||1;let a0=-Math.PI/2,p='';
- items.forEach(it=>{if(!it.v)return;const a1=a0+it.v/tot*2*Math.PI,r=64,ri=40,cx=80,cy=80,lg=a1-a0>Math.PI?1:0;
-  const P=(r,a)=>[cx+r*Math.cos(a),cy+r*Math.sin(a)];const [x0,y0]=P(r,a0),[x1,y1]=P(r,Math.min(a1,a0+6.2831)),[x2,y2]=P(ri,Math.min(a1,a0+6.2831)),[x3,y3]=P(ri,a0);
-  p+=`<path d="M${x0},${y0}A${r},${r} 0 ${lg} 1 ${x1},${y1}L${x2},${y2}A${ri},${ri} 0 ${lg} 0 ${x3},${y3}Z" fill="${it.c}"><title>${esc(it.n)}: ${fmt(it.v)}</title></path>`;a0=a1});
- return `<div class="donut"><svg class="donut-svg" viewBox="0 0 160 160" width="160" height="160">${p}<text x="80" y="78" text-anchor="middle" style="font-size:17px;font-weight:800;fill:#1a1a1a">${fmt(tot)}</text><text x="80" y="94" text-anchor="middle" style="font-size:9px">total</text></svg>
- <div class="donut-leg">${items.map(it=>`<div class="dl-row"><i style="background:${it.c}"></i><span class="dl-n">${esc(it.n)}</span><b>${fmt(it.v)}</b><em>${pct(it.v,tot,0)}</em></div>`).join('')}</div></div>`;
-}
-function hbars(rows,col,o={}){ // [{n,v,s}]
- const mx=Math.max(1,...rows.map(r=>r.v));
- return `<div class="funnel">${rows.map(r=>`<div class="frow"><span title="${esc(r.n)}" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.n)}</span><div class="fb"><i style="width:${r.v/mx*100}%;background:${r.c||col}"></i></div><span>${o.pct?r.v.toFixed(1)+'%':fmt(r.v)}${r.s?` <small class="pc">${r.s}</small>`:''}</span></div>`).join('')}</div>`;
-}
 
-/* ---------- tablas ordenables con búsqueda y CSV ---------- */
-let TB={};
-function tbl(id,cols,rows,o={}){
- TB[id]={cols,rows,sort:o.sort==null?-1:o.sort,dir:o.dir||-1,q:'',lim:o.lim||250,file:o.file||id};
- return `<div class="tools">${o.search?`<input type="search" placeholder="Buscar…" oninput="tq('${id}',this.value)">`:''}<span class="muted" id="${id}-n"></span>${o.csv?`<button class="btn" onclick="tcsv('${id}')">⬇ CSV</button>`:''}</div><div class="tbl-wrap"><table class="dt" id="${id}"></table></div>`;
-}
-function tdraw(id){
- const T=TB[id],el=$(id);if(!el)return;let rows=T.rows;
- if(T.q){const q=T.q.toLowerCase();rows=rows.filter(r=>T.cols.some(c=>String(c.v(r)==null?'':c.v(r)).toLowerCase().includes(q)))}
- if(T.sort>=0){const c=T.cols[T.sort];rows=rows.slice().sort((a,b)=>{const x=c.v(a),y=c.v(b);const nx=x==null||x==='',ny=y==null||y==='';if(nx||ny)return nx&&ny?0:nx?1:-1;return (typeof x==='number'&&typeof y==='number'?x-y:String(x).localeCompare(String(y),'es'))*T.dir})}
- const shown=rows.slice(0,T.lim);
- let h='<thead><tr>'+T.cols.map((c,i)=>`<th class="s" onclick="tsort('${id}',${i})">${c.h}${T.sort===i?(T.dir>0?' ▲':' ▼'):''}</th>`).join('')+'</tr></thead><tbody>';
- h+=shown.map(r=>'<tr>'+T.cols.map(c=>`<td class="${c.t?'t':''}">${c.r?c.r(r):(c.v(r)==null?'—':(typeof c.v(r)==='number'?fmt(c.v(r)):esc(c.v(r))))}</td>`).join('')+'</tr>').join('');
- const hasTot=T.cols.some(c=>c.tot);
- if(hasTot)h+='<tr class="tot">'+T.cols.map((c,i)=>`<td class="${c.t?'t':''}">${c.tot?c.tot(rows):(i===0?'Total':'')}</td>`).join('')+'</tr>';
- el.innerHTML=h+'</tbody>';const n=$(id+'-n');if(n)n.textContent=rows.length>T.lim?`Mostrando ${T.lim} de ${fmt(rows.length)}`:`${fmt(rows.length)} filas`;
-}
-function tsort(id,i){const T=TB[id];if(T.sort===i)T.dir=-T.dir;else{T.sort=i;T.dir=T.cols[i].t?1:-1}tdraw(id)}
-function tq(id,v){TB[id].q=v;tdraw(id)}
-function tcsv(id){const T=TB[id];let rows=T.rows;if(T.q){const q=T.q.toLowerCase();rows=rows.filter(r=>T.cols.some(c=>String(c.v(r)==null?'':c.v(r)).toLowerCase().includes(q)))}
- const q=s=>'"'+String(s==null?'':s).replace(/"/g,'""')+'"';
- const t=[T.cols.map(c=>q(c.h.replace(/<[^>]+>/g,''))).join(',')].concat(rows.map(r=>T.cols.map(c=>q(c.v(r))).join(','))).join('\n');
- const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['﻿'+t],{type:'text/csv;charset=utf-8'}));a.download=T.file+'.csv';a.click();toast('CSV descargado')}
-const drawAll=()=>Object.keys(TB).forEach(tdraw);
-/* ====================================================================== REPORTES: RESUMEN · PENALIZACIÓN · DETALLE CHECKS · HC ====================================================================== */
-const pct = (a, b, d = 1) => b > 0 ? (a / b * 100).toFixed(d) + '%' : '—';
-const kp = (l, v, s, col, click) => `<div class="kpi ${click ? 'click' : ''}" ${click ? `onclick="${click}"` : ''}><div class="l">${l}</div><div class="v" style="${col ? 'color:' + col : ''}">${v}</div><div class="s">${s || '&nbsp;'}</div></div>`;
-const pc1 = (a, b) => b > 0 ? (a / b * 100).toFixed(1) + '%' : '—';
-const pn = (a, b) => b > 0 ? a / b * 100 : null;
-const f1 = n => n == null || isNaN(n) ? '—' : n.toLocaleString('es-MX', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
-const MESN = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
-const mlabel = k => MESN[+k.slice(5, 7) - 1] + ' ' + k.slice(2, 4);
-const pillx = (t, c) => `<span class="pill ${c}">${t}</span>`;
-const C = { or: '#EE6602', gr: '#1E7A1E', rd: '#DC2626', am: '#D97706', bl: '#00509C', pu: '#5C2483', gy: '#8B939E', dk: '#3B4048' };
-const EST_COB = ['Cubierta', 'Descubierta', 'Vacante'], COBC = [C.gr, C.am, C.rd];
-const EST_PEN = ['Cubierto', 'Riesgo Penalización', 'Penalizado'];
-const LOGO = { Coppel: 'logo_coppel_clean', Elektra: 'logo_elektra_clean', Suburbia: 'logo_suburbia_clean', Cimaco: 'logo_cimaco_clean' };
-
-/* ----- carga ----- */
-const R = { loaded: false, f: { region: '', gerente: '', supervisor: '', rrhh: '', cadena: '' }, sem: null, mes: null, solo: true, kw: null, T: [], movs: [], hc: [], uc: [], bajasLive: new Set() };
-Real.reporte = async function () {
-  const [m, t, h, u, mv, bj] = await Promise.all([sb.from('rep_meta').select('valor').eq('clave', 'ventana').maybeSingle(), todo(() => sb.from('rep_tienda').select('*')), todo(() => sb.from('rep_hc').select('*')), todo(() => sb.from('rep_ultimo_check').select('*')),
-    todo(() => sb.from('movimientos').select('tipo,fecha,idpdv').gte('fecha', '2025-12-01')), todo(() => sb.from('bajas').select('usuario_fieldwy,fecha_baja').gte('fecha_baja', addD(HOY, -200)))]);
-  if (!m.data) throw new Error('Todavía no hay reportes publicados. Corre publicar_reporte.py.');
-  return { meta: m.data.valor, tiendas: t, hc: h, uc: u, movs: mv, bajas: bj };
-};
-Real.checks = function (desde, hasta) { return todo(() => sb.from('rep_checks').select('*').gte('fecha', desde).lte('fecha', hasta).order('fecha').order('hora_in')); };
-
-async function cargarReporte() {
-  if (R.loaded) return;
-  const d = await API.reporte();
-  R.meta = d.meta; R.movs = d.movs; R.hc = d.hc; R.uc = Object.fromEntries(d.uc.map(x => [x.usuario, x]));
-  R.bajasLive = new Map(d.bajas.map(b => [b.usuario_fieldwy, b.fecha_baja]));
-  R.T = d.tiendas.map(r => ({ id: r.idpdv, t: tienda(r.idpdv) || { nombre: 'IDPDV ' + r.idpdv, cadena: '', estado: '', region: '', gerente: '', supervisor: '', rrhh: '', posiciones: 0 }, sem: r.semanas || [], chk: (r.chk && r.chk.s) || [], cd: (r.chk && r.chk.cd) || '', dias: r.dias || '', hc: r.hc_sem || [], pen: r.pen || [] }));
-  R.sem = R.meta.ventana.length - 1; R.mes = null; R.loaded = true;
-}
-const okS = t => Object.entries(R.f).every(([k, v]) => !v || t[k] === v);
-const okI = id => { const t = tienda(id); return t ? okS(t) : !Object.values(R.f).some(Boolean); };
-function barraFiltros(fn) {
-  const base = R.T.map(x => x.t); const campos = [['region', 'Región'], ['gerente', 'Gerente / Líder'], ['supervisor', 'Supervisor'], ['rrhh', 'RR.HH.'], ['cadena', 'Cadena']];
-  const sel = campos.map(([k, l]) => { const ops = [...new Set(base.filter(t => Object.entries(R.f).every(([kk, v]) => kk === k || !v || t[kk] === v)).map(t => t[k]).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es'));
-    return `<div class="fb-field"><label>${l}</label><select onchange="R.f['${k}']=this.value;${fn}()"><option value="">Todos</option>${ops.map(o => `<option ${R.f[k] === o ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select></div>`; }).join('');
-  return `<div class="fbar">${sel}<button class="btn sm" onclick="Object.keys(R.f).forEach(k=>R.f[k]='');${fn}()">✕ Quitar filtros</button></div>`;
-}
-const cargando = (t, m) => { $('content').innerHTML = cab(t, 'Cargando…', m); };
-async function conReporte(titulo, mascota, fn) {
-  try { cargando(titulo, mascota); await cargarReporte(); await fn(); } catch (e) { $('content').innerHTML = cab(titulo, '', mascota) + `<div class="card empty"><img src="${img('guino')}" alt="">${esc(e.message || e)}</div>`; }
-}
-
-/* ====================================================================== 1 · RESUMEN ====================================================================== */
-function mesesRot() { // rotación mensual con altas, bajas y HC promedio (estructura filtrada)
-  const sa = R.meta.semanas_anio, hs = sa.map((_, i) => R.T.filter(x => okS(x.t)).reduce((a, x) => a + (x.hc[i] || 0), 0));
-  const hp = {}; sa.forEach((s, i) => { if (dAddS(s.ini, 6) > HOY) return; const k = dAddS(s.ini, 3).slice(0, 7); (hp[k] = hp[k] || []).push(hs[i]); });
-  const al = {}, bj = {}; R.movs.filter(m => okI(m.idpdv)).forEach(m => { const k = m.fecha.slice(0, 7); if (m.tipo === 'Alta') al[k] = (al[k] || 0) + 1; else if (m.tipo === 'Baja') bj[k] = (bj[k] || 0) + 1; });
-  const ks = [...new Set([...Object.keys(al), ...Object.keys(bj)])].filter(k => k >= '2026-01').sort();
-  return ks.map(k => { const h = hp[k] ? hp[k].reduce((a, b) => a + b, 0) / hp[k].length : null; return { k, al: al[k] || 0, bj: bj[k] || 0, hc: h, rot: h ? (bj[k] || 0) / h * 100 : null, parcial: k === HOY.slice(0, 7) }; });
-}
-const dAddS = (s, n) => addD(s, n);
-/* ---- medidas de cobertura (misma lógica del Avance GB / medidas DAX del negocio) ----
-   Dimensionamiento PDV      = Σ tiendas: (posiciones = 1 → 6/7, si no 1)
-   Dimensionamiento Promotor = Σ tiendas: posiciones × 6/7
-   Cobertura PDV    = promedio diario de tiendas con ≥ 1 check válido ÷ dimensionamiento PDV (tope 100 %)
-   Asistencia Prom. = promedio diario de checks válidos ÷ dimensionamiento Promotor (tope 100 %)
-   Checks vs cuota  = checks válidos ÷ cuota (6 por posición)
-   Estatus (últimos 2 días con datos): ambos con check = Cubierta · solo uno = Descubierta · ninguno = Vacante */
-const posc = t => t.posiciones || 1;
-const dimPdv = ts => ts.reduce((a, t) => a + (posc(t) === 1 ? 6 / 7 : 1), 0);
-const dimProm = ts => ts.reduce((a, t) => a + posc(t) * 6 / 7, 0);
-const cdv = (x, d) => { const k = diffD(d, R.meta.cd_desde); const ch = x.cd[k]; return ch == null ? 0 : parseInt(ch, 36); };
-function rangoSemana(i) { const w = R.meta.ventana[i]; const fin = [addD(w.ini, 6), R.meta.ultima_fecha || HOY, HOY].reduce((a, b) => a < b ? a : b); const dias = []; for (let d = w.ini; d <= fin; d = addD(d, 1)) dias.push(d); return dias; }
-function medidas(xs, dias) {
-  const ts = xs.filter(x => (x.t.posiciones || 0) > 0).map(x => ({ x, t: x.t })); const T = ts.map(z => z.t), nD = Math.max(1, dias.length);
-  let cubSum = 0, chk = 0; ts.forEach(({ x }) => dias.forEach(d => { const c = cdv(x, d); if (c > 0) cubSum++; chk += c; }));
-  const dP = dimPdv(T), dM = dimProm(T), pP = cubSum / nD, pM = chk / nD, cuota = T.reduce((a, t) => a + 6 * posc(t), 0), chkP = chk / nD * 7;
-  return { n: ts.length, posc: T.reduce((a, t) => a + posc(t), 0), dP, pP, pctP: dP ? Math.min(pP / dP * 100, 100) : null, difP: pP - dP, dM, pM, pctM: dM ? Math.min(pM / dM * 100, 100) : null, difM: pM - dM, chk, chkP, nD, cuota, pctC: cuota ? Math.min(chkP / cuota * 100, 100) : null, exc: Math.max(0, chkP - cuota) };
-}
-function estatusTienda(x, dias) { // últimos 2 días con datos
-  const last2 = dias.slice(-2).reverse(); const ps = posc(x.t); const r = last2.length ? cdv(x, last2[0]) : 0, a = last2.length > 1 ? cdv(x, last2[1]) : null;
-  let cob; if (a == null) cob = r > 0 ? 'Cubierta' : 'Descubierta'; else cob = r > 0 && a > 0 ? 'Cubierta' : r === 0 && a === 0 ? 'Vacante' : 'Descubierta';
-  let asi; const A = a || 0;
-  if (ps <= 1) asi = cob;
-  else if (a == null) asi = r >= ps ? 'Cubierta' : r > 0 ? 'Posc Desc' : 'Descubierta';
-  else if (r > ps && A > ps) asi = 'Posc Adic'; else if (r >= ps && A >= ps) asi = 'Cubierta'; else if (r === 0 && A === 0) asi = 'Vacante';
-  else if (r < ps && r > 0 && A < ps && A > 0) asi = 'Posc Faltante'; else if ((r < ps && r > 0) || (A < ps && A > 0)) asi = 'Posc Desc'; else if (r === 0 || A === 0) asi = 'Descubierta'; else asi = 'Sin Definir';
-  return { cob, asi, r, a };
-}
-const ASIC = { 'Cubierta': 'g', 'Posc Adic': 'g', 'Posc Desc': 'a', 'Descubierta': 'a', 'Posc Faltante': 'r', 'Vacante': 'r', 'Sin Definir': 'x' };
-function embudo(titulo, etapas, mascota) { // etapas: [{n,v,c}]
-  const mx = etapas[0].v || 1;
-  return `<div class="card"><h3>${titulo}</h3><div class="funnel2">${etapas.map(e => `<div class="fn-row"><div class="fn-l">${e.n}</div><div class="fn-b" style="width:${Math.max(9, e.v / mx * 100)}%;background:${e.c}"><span>${fmt1(e.v)}</span></div></div>`).join('')}</div></div>`;
-}
-const fmt1 = n => n == null || isNaN(n) ? '—' : (Math.abs(n - Math.round(n)) < 0.05 ? Math.round(n).toLocaleString('es-MX') : n.toLocaleString('es-MX', { minimumFractionDigits: 1, maximumFractionDigits: 1 }));
-function semData(i) {
-  const xs = R.T.filter(x => okS(x.t)); const m = medidas(xs, rangoSemana(i));
-  const ck = xs.filter(x => x.chk[i]); const d = ck.reduce((a, x) => a + x.chk[i][1], 0), c = ck.reduce((a, x) => a + x.chk[i][2], 0), pr = ck.reduce((a, x) => a + x.chk[i][3], 0), prom = ck.reduce((a, x) => a + x.chk[i][0], 0);
-  return { ...m, cob: m.pctP, asis: m.pctM, d, c, pr, prom, cum: pn(c, d), prd: pn(pr, d) };
-}
-function vResumen() {
-  conReporte('Resumen', 'pulgares', () => {
-    const i = R.sem, W = R.meta.ventana, dias = rangoSemana(i), xs = R.T.filter(x => okS(x.t)), cur = semData(i), prev = i > 0 ? semData(i - 1) : null;
-    const dl = (a, b) => a == null || b == null ? '' : `<span class="${a - b >= 0 ? 'up' : 'dn'}">${a - b >= 0 ? '▲' : '▼'} ${Math.abs(a - b).toFixed(1)} pts vs sem. ant.</span>`;
-    const rm = mesesRot(), cer = rm.filter(r => !r.parcial && r.rot != null).slice(-1)[0], act = rm.find(r => r.parcial);
-    let h = cab('Resumen', 'Cobertura de PDV, asistencia de promotores y checks contra cuota, con la misma lógica de Avance GB; más rotación y calidad de checks. Responde a los filtros de estructura y a la semana elegida.', 'pulgares') + barraFiltros('vResumen');
-    h += `<div class="tools"><span>Semana:</span><select onchange="R.sem=+this.value;vResumen()">${W.map((w, k) => `<option value="${k}" ${k === i ? 'selected' : ''}>${w.w}${k === W.length - 1 ? ' (en curso)' : ''}</option>`).join('')}</select><span class="muted">${dias.length} día${dias.length > 1 ? 's' : ''} con datos (${fdate(dias[0])} al ${fdate(dias[dias.length - 1])}) · publicado ${esc(R.meta.generado)}</span></div>`;
-    h += `<div class="kpis kp-hero">${kp('% Cobertura PDV', cur.pctP == null ? '—' : f1(cur.pctP) + '%', `${fmt1(cur.pP)} tiendas/día vs ${fmt1(cur.dP)} dimensionadas<br>${dl(cur.pctP, prev && prev.pctP)}`, cur.pctP >= 90 ? C.gr : cur.pctP >= 75 ? C.am : C.rd)}
-      ${kp('% Asistencia Promotor', cur.pctM == null ? '—' : f1(cur.pctM) + '%', `${fmt1(cur.pM)} promotores/día vs ${fmt1(cur.dM)} dimensionados<br>${dl(cur.pctM, prev && prev.pctM)}`, cur.pctM >= 90 ? C.gr : cur.pctM >= 75 ? C.am : C.rd)}
-      ${kp('% Checks vs cuota', cur.pctC == null ? '—' : f1(cur.pctC) + '%', `${fmt(cur.chk)} checks en ${cur.nD} d${cur.nD < 7 ? ' → ' + fmt(cur.chkP) + ' proyectados a 7 d' : ''} vs cuota ${fmt(cur.cuota)} (6 por posición)<br>${dl(cur.pctC, prev && prev.pctC)}`, C.bl)}
-      ${kp('Rotación mes cerrado', cer ? f1(cer.rot) + '%' : '—', cer ? `${mlabel(cer.k)} · ${cer.bj} bajas ÷ ${fmt(cer.hc)} HC` : '', C.am)}${kp('Rotación mes en curso', act && act.rot != null ? f1(act.rot) + '%' : '—', act ? `${act.bj} bajas · ${act.al} altas a la fecha` : '', C.am)}
-      ${kp('Checks que cumplen', cur.cum == null ? '—' : f1(cur.cum) + '%', `${fmt(cur.c)} de ${fmt(cur.d)} checks · ${f1(cur.prd)}% por productividad`, cur.cum >= 90 ? C.gr : C.am)}</div>`;
-    h += `<div class="grid g3">${embudo('Cobertura PDV', [{ n: "Total PDV's", v: cur.n, c: C.bl }, { n: 'Dimensionamiento', v: cur.dP, c: C.bl }, { n: 'Cubiertos (prom. diario)', v: cur.pP, c: C.gr }, { n: 'Descubiertos', v: Math.max(0, -cur.difP), c: C.rd }])}
-      ${embudo('Asistencia Promotor', [{ n: 'Posiciones autorizadas', v: cur.posc, c: C.bl }, { n: 'Dimensionamiento', v: cur.dM, c: C.bl }, { n: 'Asistieron (prom. diario)', v: cur.pM, c: C.gr }, { n: 'Sin asistir', v: Math.max(0, -cur.difM), c: C.rd }])}
-      ${embudo('Checks vs cuota', [{ n: 'Cuota de checks', v: cur.cuota, c: C.bl }, { n: cur.nD < 7 ? 'Checks válidos (proy. 7 d)' : 'Checks válidos', v: cur.chkP, c: C.gr }, { n: 'Faltantes', v: Math.max(0, cur.cuota - cur.chkP), c: C.rd }, { n: 'Adicionales', v: cur.exc, c: C.am }])}</div>`;
-    // por cadena
-    const cads = [...new Set(xs.map(x => x.t.cadena).filter(Boolean))];
-    const cadRows = cads.map(c => { const m = medidas(xs.filter(y => y.t.cadena === c), dias); return { c, n: m.n, p: m.pctP, a: m.pctM }; }).filter(r => r.n).sort((a, b) => b.n - a.n);
-    const col = p => p >= 90 ? C.gr : p >= 75 ? C.am : C.rd;
-    const st = xs.filter(x => (x.t.posiciones || 0) > 0).map(x => ({ x, s: estatusTienda(x, dias) })); const ce = { Cubierta: 0, Descubierta: 0, Vacante: 0 }; st.forEach(z => ce[z.s.cob]++);
-    h += `<div class="grid g2"><div class="card"><h3>Cobertura por cadena</h3><p class="note">% Cobertura PDV (barra) y % Asistencia Promotor.</p>${cadRows.map(r => `<div class="cadena-row">${LOGO[r.c] ? `<img class="cadena-logo" src="${img(LOGO[r.c])}" alt="${esc(r.c)}">` : `<b style="min-width:70px;font-size:12px">${esc(r.c)}</b>`}<div class="cadena-track"><i style="width:${r.p || 0}%;background:${col(r.p)}"></i></div><b class="cadena-val" style="color:${col(r.p)}">${f1(r.p)}%</b><span class="muted" style="min-width:90px;text-align:right">asist. ${f1(r.a)}%</span></div>`).join('')}</div>
-      <div class="card"><h3>Estatus de tiendas (últimos 2 días)</h3><p class="note">Cubierta: check en los 2 días · Descubierta: falta 1 día · Vacante: 2 días sin check.</p>${donut(['Cubierta', 'Descubierta', 'Vacante'].map((n, k) => ({ n, v: ce[n], c: COBC[k] })))}</div></div>`;
-    const labs = W.map(w => w.w.slice(3)), S_ = W.map((_, k) => semData(k));
-    h += `<div class="grid g2"><div class="card"><h3>Comparativo semanal</h3>${legend([['% Cobertura PDV', C.gr], ['% Asistencia Promotor', C.bl], ['% Checks vs cuota', C.or]])}${chart(labs, [{ n: '% Cobertura PDV', c: C.gr, v: S_.map(x => x.pctP) }, { n: '% Asistencia', c: C.bl, v: S_.map(x => x.pctM) }, { n: '% Checks vs cuota', c: C.or, v: S_.map(x => x.pctC) }], { pct: 1, max: 100, h: 230 })}</div>
-      <div class="card"><h3>Rotación: altas y bajas por mes</h3>${legend([['Altas', C.gr], ['Bajas', C.rd]])}${chart(rm.map(r => mlabel(r.k)), [{ n: 'Altas', c: C.gr, v: rm.map(r => r.al) }, { n: 'Bajas', c: C.rd, v: rm.map(r => r.bj) }], { bars: 1, h: 230, ticks: 12 })}<p class="tblnote">Rotación = bajas del mes ÷ promedio semanal de promotores con check. ${rm.filter(r => r.rot != null).map(r => mlabel(r.k) + ' ' + f1(r.rot) + '%').slice(-4).join(' · ')}</p></div></div>`;
-    h += `<div class="card" style="margin-top:14px"><h3>Semana por semana</h3>${tablaSemanal(S_, W)}</div>`;
-    h += sect('Tiendas: cobertura, asistencia y checks') + `<div class="tools">${['Todas', 'Cubierta', 'Descubierta', 'Vacante'].map(e => `<button class="chip ${(R.est || 'Todas') === e ? 'on' : ''}" onclick="R.est='${e}';vResumen()">${e}${e === 'Todas' ? '' : ' (' + ce[e] + ')'}</button>`).join('')}</div>`;
-    const rows = st.filter(z => !R.est || R.est === 'Todas' || z.s.cob === R.est).map(({ x, s }) => { const sw = x.sem[i] || [], c = x.chk[i], pe = penActual(x); const ps = posc(x.t); const chs = dias.reduce((a, d) => a + cdv(x, d), 0), cu = 6 * ps, chsP = chs / Math.max(1, dias.length) * 7; const eCh = chs === 0 ? 'Vacante' : chsP < 6 ? 'Revisar cobertura' : ps >= 2 && chsP < 6 * ps ? 'Posc Faltante' : chsP > cu ? 'Posc Adicional' : 'Cubierta';
-      return { ...x, s, ps, chs, chsP, cu, eCh, ul: sw[8], prom: c ? c[0] : 0, cd: c ? c[1] : 0, cc: c ? c[2] : 0, pe }; });
-    TB = {};
-    h += tbl('t-tiendas', [{ h: 'Tienda', t: 1, v: r => r.t.nombre, r: r => `<b>${esc(r.t.nombre)}</b><br><small class="muted">${r.id}</small>` }, { h: 'Cadena', t: 1, v: r => r.t.cadena }, { h: 'Estado', t: 1, v: r => r.t.estado }, { h: 'Posc.', v: r => r.ps },
-      { h: 'Estatus cobertura', t: 1, v: r => r.s.cob, r: r => pillx(r.s.cob, r.s.cob === 'Cubierta' ? 'g' : r.s.cob === 'Vacante' ? 'r' : 'a') }, { h: 'Estatus asistencia', t: 1, v: r => r.s.asi, r: r => pillx(r.s.asi, ASIC[r.s.asi] || 'x') },
-      { h: 'Último check', v: r => r.ul, r: r => fdate(r.ul) }, { h: 'Checks', v: r => r.chs }, { h: 'Cuota (sem.)', v: r => r.cu }, { h: '% cuota (proy.)', v: r => pn(r.chsP, r.cu), r: r => pc1(Math.min(r.chsP, r.cu), r.cu) }, { h: 'Estatus checks', t: 1, v: r => r.eCh, r: r => pillx(r.eCh, r.eCh === 'Cubierta' || r.eCh === 'Posc Adicional' ? 'g' : r.eCh === 'Revisar cobertura' ? 'a' : 'r') },
-      { h: 'Promotores', v: r => r.prom }, { h: '% cumplen', v: r => pn(r.cc, r.cd), r: r => pc1(r.cc, r.cd) }, { h: 'Racha sin cobertura', v: r => r.pe ? r.pe.ra : null, r: r => r.pe ? semaforo(r.pe) : '—' }, { h: 'Región', t: 1, v: r => r.t.region }, { h: 'Gerente', t: 1, v: r => r.t.gerente }, { h: 'Supervisor', t: 1, v: r => r.t.supervisor }, { h: 'RR.HH.', t: 1, v: r => r.t.rrhh }], rows, { search: 1, csv: 1, file: 'tiendas_resumen', sort: 4, dir: -1 });
-    $('content').innerHTML = h; drawAll();
-  });
-}
-
-function tablaSemanal(S_, W) {
-  const fila = (l, f) => `<tr><td><b>${l}</b></td>${S_.map(f).map(v => `<td>${v}</td>`).join('')}</tr>`;
-  const p = v => v == null ? '—' : f1(v) + '%';
-  return `<div class="tbl-wrap"><table class="dt"><thead><tr><th></th>${W.map(w => `<th>${w.w}</th>`).join('')}</tr></thead><tbody>${fila('Total PDV', x => fmt(x.n))}${fila('Dimensionamiento PDV', x => fmt1(x.dP))}${fila('Cubiertos (prom. diario)', x => fmt1(x.pP))}${fila('% Cobertura PDV', x => p(x.pctP))}${fila('Posiciones autorizadas', x => fmt(x.posc))}${fila('Dimensionamiento Promotor', x => fmt1(x.dM))}${fila('Asistieron (prom. diario)', x => fmt1(x.pM))}${fila('% Asistencia Promotor', x => p(x.pctM))}${fila('Checks válidos / cuota', x => fmt(x.chk) + ' / ' + fmt(x.cuota))}${fila('% Checks vs cuota', x => p(x.pctC))}${fila('% Checks que cumplen', x => p(x.cum))}${fila('% Por productividad', x => p(x.prd))}</tbody></table></div>`;
-}
-
-/* ====================================================================== 2 · PENALIZACIÓN ====================================================================== */
-const penActual = x => (x.pen || []).find(p => p.act) || (x.pen || []).slice(-1)[0] || null;
-function nivel(p) { // semáforo por días sin cobertura (racha confirmada hasta ayer) y estado de hoy
-  if (!p) return { k: 'v', t: 'Sin dato' };
-  if (p.e === 2) return { k: 'r', t: 'Penalizada' };
-  if (p.act && p.hoy === 'C') return { k: 'v', t: 'Cubierta hoy' };
-  if (p.act && p.ra >= 4) return { k: 'rp', t: p.hoy === 'A' ? 'Crítica: check abierto, debe completar 7 h' : 'Crítica: cubrir HOY' };
-  if (p.act && p.ra === 3) return { k: 'n', t: 'Riesgo: cubrir antes de 5 días' };
-  if (p.act && p.ra >= 1) return { k: 'a', t: 'Vigilar' };
-  return { k: 'v', t: 'Cubierta' };
-}
-const semaforo = p => { const n = nivel(p); return `<span class="sem ${n.k}" title="${esc(n.t)}"><i></i>${p && p.act ? p.ra + ' d' : (p ? p.mx + ' d' : '—')}</span>`; };
-function vPenal() {
-  conReporte('Penalización', 'puno', () => {
-    const meses = [...new Set(R.T.flatMap(x => (x.pen || []).map(p => p.m)))].sort(); if (!R.mes || !meses.includes(R.mes)) R.mes = meses[meses.length - 1];
-    const cop = R.solo; const f = R.T.filter(x => okS(x.t) && (!cop || x.t.cadena === 'Coppel'));
-    const dePenal = f.map(x => ({ ...x, p: (x.pen || []).find(p => p.m === R.mes) })).filter(x => x.p);
-    const act = R.mes === HOY.slice(0, 7);
-    const c = [0, 0, 0]; dePenal.forEach(x => c[x.p.e]++);
-    const crit = act ? dePenal.filter(x => ['rp'].includes(nivel(x.p).k)) : [], ries = act ? dePenal.filter(x => nivel(x.p).k === 'n') : [], vig = act ? dePenal.filter(x => nivel(x.p).k === 'a') : [];
-    const mi = meses.indexOf(R.mes), prevM = mi > 0 ? meses[mi - 1] : null;
-    const prevPen = prevM ? f.filter(x => (x.pen || []).some(p => p.m === prevM && p.e === 2)).length : null;
-    let h = cab('Penalización por falta de cobertura', 'Una tienda se penaliza con 5 o más días seguidos sin cobertura en el mes. Cuenta como cobertura un check dentro de rango y con 420 minutos en tienda (300 los domingos con horario diferenciado); el check de un supervisor también rompe la racha.', 'puno') + barraFiltros('vPenal');
-    h += `<div class="tools"><span>Mes:</span><select onchange="R.mes=this.value;vPenal()">${meses.map(m => `<option value="${m}" ${m === R.mes ? 'selected' : ''}>${mlabel(m)}${m === HOY.slice(0, 7) ? ' (en curso)' : ''}</option>`).join('')}</select><button class="chip ${R.solo ? 'on' : ''}" onclick="R.solo=!R.solo;vPenal()">Solo Coppel (prioridad)</button><span class="muted">${fmt(dePenal.length)} tiendas</span></div>`;
-    h += `<div class="kpis">${kp('Penalizadas', fmt(c[2]), pc1(c[2], dePenal.length) + ' de las tiendas', c[2] ? C.rd : C.gr)}${act ? kp('Críticas hoy', fmt(crit.length), '4+ días sin cobertura: cubrir HOY', crit.length ? C.rd : C.gr) : ''}${act ? kp('En riesgo', fmt(ries.length), '3 días: cubrir antes de 5', ries.length ? C.am : C.gr) : kp('En riesgo (cierre)', fmt(c[1]), 'con racha de 3 a 4 días')}${act ? kp('Vigilar', fmt(vig.length), '1 a 2 días sin cobertura', C.am) : ''}${kp('Cubiertas', fmt(c[0]), pc1(c[0], dePenal.length), C.gr)}${kp('Penalizadas mes anterior', prevPen == null ? '—' : fmt(prevPen), prevM ? mlabel(prevM) : '')}</div>`;
-    if (act && (crit.length || ries.length)) {
-      h += sect('Alertas: tiendas por cubrir antes de que se penalicen') + `<div class="alertas">${[...crit, ...ries].sort((a, b) => (b.t.cadena === 'Coppel') - (a.t.cadena === 'Coppel') || b.p.ra - a.p.ra).slice(0, 24).map(x => { const n = nivel(x.p); return `<div class="al-card ${n.k}"><b>${esc(x.t.nombre)}</b><span>${esc(x.t.estado)} · ${esc(x.t.supervisor || '')}</span><em>${x.p.ra} días sin cobertura · ${esc(n.t)}</em></div>`; }).join('')}</div>`;
-    }
-    const mm = meses.map(m => { const x = f.map(y => (y.pen || []).find(p => p.m === m)).filter(Boolean); return [0, 1, 2].map(e => x.filter(p => p.e === e).length); });
-    const dist = {}; dePenal.forEach(x => { (x.p.rs || []).forEach(r => { const k = Math.min(r[0], 10); dist[k] = (dist[k] || 0) + 1; }); });
-    h += `<div class="grid g2" style="margin-top:14px"><div class="card"><h3>Tiendas por estatus y mes</h3>${legend(EST_PEN.map((n, k) => [n, COBC[k]]))}${chart(meses.map(mlabel), EST_PEN.map((n, k) => ({ n, c: COBC[k], v: mm.map(x => x[k]) })), { bars: 1, stack: 1, h: 220, ticks: 6 })}</div>
-      <div class="card"><h3>Rachas del mes por duración</h3><p class="note">Cuántas rachas sin cobertura hubo de cada duración (10 = 10 días o más).</p>${chart(Object.keys(dist).sort((a, b) => a - b).map(k => k + ' d'), [{ n: 'Rachas', c: C.rd, v: Object.keys(dist).sort((a, b) => a - b).map(k => dist[k]) }], { bars: 1, h: 200, ticks: 12 })}</div></div>`;
-    TB = {};
-    h += sect('Tiendas: semáforo y días sin cobertura') + tbl('t-pen', [{ h: 'Tienda', t: 1, v: r => r.t.nombre, r: r => `<b>${esc(r.t.nombre)}</b><br><small class="muted">${r.id}</small>` }, { h: 'Cadena', t: 1, v: r => r.t.cadena }, { h: 'Estado', t: 1, v: r => r.t.estado },
-      { h: 'Semáforo', v: r => (nivel(r.p).k === 'rp' ? 5 : nivel(r.p).k === 'r' ? 4 : nivel(r.p).k === 'n' ? 3 : nivel(r.p).k === 'a' ? 2 : 1) * 100 + (r.p.act ? r.p.ra : r.p.mx), r: r => `${semaforo(r.p)} <small class="muted">${esc(nivel(r.p).t)}</small>` },
-      { h: act ? 'Racha actual' : 'Racha máx.', v: r => act ? r.p.ra : r.p.mx }, { h: 'Hoy', v: r => r.p.hoy || '', r: r => !r.p.act ? '—' : r.p.hoy === 'C' ? pillx('Cubierta', 'g') : r.p.hoy === 'A' ? pillx('Check abierto', 'b') : pillx('Sin check', 'r') },
-      { h: 'Estatus mes', v: r => r.p.e, r: r => pillx(EST_PEN[r.p.e], r.p.e === 2 ? 'r' : r.p.e === 1 ? 'a' : 'g') }, { h: 'Periodo en curso / penalizado', t: 1, v: r => r.p.pa }, { h: 'Mayor racha', v: r => r.p.mx }, { h: 'Periodo mayor racha', t: 1, v: r => r.p.pm },
-      { h: 'Días sin check (mes)', v: r => r.p.ds }, { h: 'Último check', v: r => r.p.ul, r: r => fdate(r.p.ul) }, { h: 'Región', t: 1, v: r => r.t.region }, { h: 'Gerente', t: 1, v: r => r.t.gerente }, { h: 'Supervisor', t: 1, v: r => r.t.supervisor }, { h: 'RR.HH.', t: 1, v: r => r.t.rrhh }],
-      dePenal, { search: 1, csv: 1, file: 'penalizacion_tiendas', sort: 3, dir: -1 });
-    const rach = []; dePenal.forEach(x => (x.p.rs || []).forEach(r => rach.push({ ...x, dias: r[0], ini: r[1], fin: r[2] })));
-    h += sect('Mayores rachas sin cobertura del mes') + `<p class="note">Cada racha de 2 o más días seguidos sin cobertura, con su periodo. Las de 5 días o más son penalizables.</p>` + tbl('t-rach', [{ h: 'Tienda', t: 1, v: r => r.t.nombre }, { h: 'Cadena', t: 1, v: r => r.t.cadena }, { h: 'Días sin cobertura', v: r => r.dias, r: r => `<span class="${r.dias >= 5 ? 'cell-red' : r.dias >= 3 ? 'cell-amber' : ''}">${r.dias}</span>` }, { h: 'Inicio', v: r => r.ini, r: r => fdate(r.ini) }, { h: 'Fin', v: r => r.fin, r: r => fdate(r.fin) }, { h: 'Penalizable', v: r => r.dias >= 5 ? 'Sí' : 'No', r: r => r.dias >= 5 ? pillx('Sí', 'r') : pillx('No', 'x') }, { h: 'Estado', t: 1, v: r => r.t.estado }, { h: 'Supervisor', t: 1, v: r => r.t.supervisor }, { h: 'RR.HH.', t: 1, v: r => r.t.rrhh }], rach, { search: 1, csv: 1, file: 'rachas', sort: 2, dir: -1 });
-    $('content').innerHTML = h; drawAll();
-  });
-}
-
-/* ====================================================================== 3 · DETALLE DE CHECKS ====================================================================== */
-let CKS = { sem: null, rows: [], soloErr: false, est: '' };
-const ERRN = { 'Cumple': 'Cumple', 'Check In Fuera Ventana': 'Entrada fuera de horario', 'Check Out Fuera Ventana': 'Salida fuera de horario', 'Error Comida': 'Error de comida', 'Tiempo Incompleto': 'Tiempo incompleto', 'Check In Fuera Rango': 'Entrada fuera de rango', 'Check Out Fuera Rango': 'Salida fuera de rango', 'No Check Salida': 'Sin check de salida', 'Equipo Duplicado': 'Equipo duplicado', 'Abierto': 'Abierto (hoy)' };
-const VALC = { 'Cumple': 'g', 'Cumple Productividad': 'b', 'Cumple Telefonica': 'b', 'No Cumple': 'r' };
-async function vChecks() {
-  conReporte('Detalle de checks', 'sim', async () => {
-    const W = R.meta.ventana; if (CKS.sem == null) CKS.sem = W.length - 1; const w = W[CKS.sem];
-    if (CKS.cargada !== CKS.sem) { $('content').innerHTML = cab('Detalle de checks', 'Cargando checks de ' + w.w + '…', 'sim'); CKS.rows = await API.checks(w.ini, addD(w.ini, 6)); CKS.cargada = CKS.sem; }
-    const f = CKS.rows.filter(r => okI(r.idpdv));
-    const prim = f.filter(r => r.estatus_final !== 'Otro Check' && r.estatus_check !== 'Abierto');
-    const ok = prim.filter(r => ['Cumple', 'Cumple Productividad', 'Cumple Telefonica'].includes(r.estatus_final));
-    const prom = new Set(prim.map(r => r.usuario)).size, prod = prim.filter(r => r.estatus_final === 'Cumple Productividad').length;
-    const mix = {}; prim.forEach(r => mix[r.estatus_check] = (mix[r.estatus_check] || 0) + 1);
-    const errs = Object.entries(mix).filter(([k]) => k !== 'Cumple').sort((a, b) => b[1] - a[1]);
-    const vtas = prim.reduce((a, r) => a + r.registros, 0), sinVta = prim.filter(r => r.estatus_check !== 'Cumple' && r.registros === 0 && r.estatus_final === 'No Cumple').length;
-    let h = cab('Detalle de checks', 'Cada check de cada promotor: horarios, tiempos, rangos y resultado, con la venta registrada del día para confirmar la justificación por productividad.', 'sim') + barraFiltros('vChecks');
-    h += `<div class="tools"><span>Semana:</span><select onchange="CKS.sem=+this.value;vChecks()">${W.map((x, k) => `<option value="${k}" ${k === CKS.sem ? 'selected' : ''}>${x.w}${k === W.length - 1 ? ' (en curso)' : ''}</option>`).join('')}</select><span class="muted">${fmt(f.length)} registros de check (${fmt(prim.length)} evaluados)</span></div>`;
-    h += `<div class="kpis">${kp('Checks evaluados', fmt(prim.length), 'uno por promotor y día')}${kp('Promotores con check', fmt(prom), w.w)}${kp('Cumplen (regla de pago)', pc1(ok.length, prim.length), fmt(ok.length) + ' checks', ok.length / prim.length >= 0.9 ? C.gr : C.am)}${kp('Cumplen por productividad', pc1(prod, prim.length), fmt(prod) + ' justificados con ventas', C.pu)}${kp('Ventas registradas', fmt(vtas), 'en los días con check')}${kp('No cumplen y sin venta', fmt(sinVta), 'sin justificación', sinVta ? C.rd : C.gr)}</div>`;
-    const dias7 = [...Array(7)].map((_, k) => addD(w.ini, k));
-    const porDia = dias7.map(d => { const x = prim.filter(r => r.fecha === d); return { n: x.length, c: x.filter(r => ['Cumple', 'Cumple Productividad', 'Cumple Telefonica'].includes(r.estatus_final)).length }; });
-    h += `<div class="grid g2"><div class="card"><h3>Resultado del check</h3><p class="note">Antes de aplicar productividad o Telefónica.</p>${hbars(Object.entries(mix).sort((a, b) => b[1] - a[1]).map(([k, v]) => ({ n: ERRN[k] || k, v, c: k === 'Cumple' ? C.gr : /Rango|Duplicado|Salida$/.test(k) && k !== 'Check Out Fuera Ventana' ? C.rd : C.am, s: pc1(v, prim.length) })), C.am)}</div>
-      <div class="card"><h3>Checks por día</h3>${legend([['Cumplen', C.gr], ['No cumplen', C.rd]])}${chart(dias7.map(d => d.slice(8) + '/' + d.slice(5, 7)), [{ n: 'Cumplen', c: C.gr, v: porDia.map(x => x.c) }, { n: 'No cumplen', c: C.rd, v: porDia.map(x => x.n - x.c) }], { bars: 1, stack: 1, h: 210, ticks: 7 })}</div></div>`;
-    // por promotor con errores
-    const gp = new Map(); prim.forEach(r => { if (!gp.has(r.usuario)) gp.set(r.usuario, []); gp.get(r.usuario).push(r); });
-    const rk = [...gp].map(([u, v]) => ({ u, n: v[0].nombre, d: v.length, c: v.filter(r => ['Cumple', 'Cumple Productividad', 'Cumple Telefonica'].includes(r.estatus_final)).length, v: v.reduce((a, r) => a + r.registros, 0), t: v[0].idpdv })).filter(x => x.d >= 3 && x.c / x.d < 0.7).sort((a, b) => a.c / a.d - b.c / b.d).slice(0, 12);
-    if (rk.length) h += `<div class="card" style="margin-top:14px"><h3>Promotores con menor cumplimiento</h3>${hbars(rk.map(x => ({ n: x.n + ' · ' + (tienda(x.t) || { nombre: '' }).nombre, v: x.c / x.d * 100, s: `${x.c}/${x.d} · ${x.v} ventas`, c: C.rd })), C.rd, { pct: 1 })}</div>`;
-    TB = {};
-    const sel = f.filter(r => (!CKS.soloErr || (r.estatus_check !== 'Cumple' && r.estatus_final !== 'Otro Check')) && (!CKS.est || r.estatus_check === CKS.est));
-    h += sect('Detalle de cada check') + `<div class="tools"><button class="chip ${CKS.soloErr ? 'on' : ''}" onclick="CKS.soloErr=!CKS.soloErr;vChecks()">Solo con error</button><select onchange="CKS.est=this.value;vChecks()"><option value="">Todos los resultados</option>${Object.keys(ERRN).map(k => `<option value="${k}" ${CKS.est === k ? 'selected' : ''}>${ERRN[k]}</option>`).join('')}</select></div>`;
-    h += tbl('t-checks', [{ h: 'Fecha', v: r => r.fecha, r: r => fdate(r.fecha) }, { h: 'Promotor', t: 1, v: r => r.nombre, r: r => `<b>${esc(r.nombre)}</b><br><small class="muted">${esc(r.usuario)} · ${esc(r.rol)}</small>` }, { h: 'Tienda', t: 1, v: r => (tienda(r.idpdv) || {}).nombre || r.idpdv },
-      { h: 'Entrada', v: r => r.hora_in, r: r => hh(r.hora_in) }, { h: 'Comida', v: r => r.hora_com_in, r: r => hh(r.hora_com_in) + ' – ' + hh(r.hora_com_out) }, { h: 'Salida', v: r => r.hora_out, r: r => hh(r.hora_out) }, { h: 'En tienda (min)', v: r => r.tiempo_ub, r: r => `<span class="${r.tiempo_ub < 420 ? 'cell-amber' : ''}">${fmt(r.tiempo_ub)}</span>` }, { h: 'Comida (min)', v: r => r.tiempo_com, r: r => f1(r.tiempo_com) },
-      { h: 'Rango entrada', t: 1, v: r => r.rango_in, r: r => /fuera/i.test(r.rango_in || '') ? `<span class="cell-red">${esc(r.rango_in)}</span>` : esc(r.rango_in || '—') }, { h: 'Rango salida', t: 1, v: r => r.rango_out, r: r => /fuera/i.test(r.rango_out || '') ? `<span class="cell-red">${esc(r.rango_out)}</span>` : esc(r.rango_out || '—') },
-      { h: 'Resultado', t: 1, v: r => ERRN[r.estatus_check] || r.estatus_check, r: r => pillx(ERRN[r.estatus_check] || r.estatus_check, r.estatus_check === 'Cumple' ? 'g' : r.estatus_check === 'Abierto' ? 'b' : 'a') }, { h: 'Estatus final', t: 1, v: r => r.estatus_final, r: r => pillx(r.estatus_final, VALC[r.estatus_final] || 'x') },
-      { h: 'Ventas', v: r => r.registros, r: r => r.registros ? `<b>${r.registros}</b> <small class="muted">T${r.temm} P${r.porta} Pos${r.pospago} Pre${r.prepago}</small>` : '0' }, { h: 'Justifica', t: 1, v: r => r.estatus_final === 'Cumple Productividad' ? 'Productividad' : r.check_tel ? 'Telefónica' : '', r: r => r.estatus_final === 'Cumple Productividad' ? pillx('Con ventas', 'b') : r.estatus_check !== 'Cumple' && r.registros === 0 && r.estatus_final === 'No Cumple' ? pillx('Sin venta', 'r') : '' },
-      { h: 'Región', t: 1, v: r => (tienda(r.idpdv) || {}).region }, { h: 'Gerente', t: 1, v: r => (tienda(r.idpdv) || {}).gerente }, { h: 'Supervisor', t: 1, v: r => (tienda(r.idpdv) || {}).supervisor }, { h: 'RR.HH.', t: 1, v: r => (tienda(r.idpdv) || {}).rrhh }], sel, { search: 1, csv: 1, file: 'detalle_checks', sort: 0, dir: -1, lim: 400 });
-    $('content').innerHTML = h; drawAll();
-  });
-}
-const hh = s => s ? s.slice(0, 5) : '—';
-
-/* ====================================================================== 4 · HC ====================================================================== */
-const ACTC = { 'Activo': 'g', 'Reingreso': 'g', 'Descanso / falta / error': 'a', 'Posible baja': 'r', 'Baja': 'x' };
-function estadoVivo(h) { // se calcula con lo que RH capturó en la app (ausencias y bajas) encima del último check
-  const baja = R.bajasLive.get(h.usuario); if (baja && (!h.fecha_alta || baja >= h.fecha_alta)) return { e: 'Baja', det: 'Baja ' + fdate(baja) };
-  const au = S.vigentes.find(v => v.usuario === h.usuario); if (au) return { e: au.motivo, det: `${au.dias} d · regresa ${fdate(au.regreso)}`, aus: au };
-  if (h.ausencia_motivo && h.ausencia_regreso && h.ausencia_regreso > HOY) return { e: h.ausencia_motivo, det: `${h.ausencia_dias} d · regresa ${fdate(h.ausencia_regreso)}` };
-  const d = h.ultimo_check ? diffD(HOY, h.ultimo_check) : null;
-  if (d == null) return { e: 'Sin check', det: '' }; if (d <= 0) return { e: 'Activo', det: '' }; if (d === 1) return { e: 'Descanso / falta / error', det: '1 día sin check' }; return { e: 'Posible baja', det: d + ' días sin check' };
-}
-async function vHC() {
-  conReporte('HC', 'mochila', async () => {
-    if (!R.vivo) { try { S.vigentes = await API.vigentes(); } catch (e) { } R.vivo = true; }
-    const rows = R.hc.filter(h => okI(h.ultimo_idpdv)).map(h => { const v = estadoVivo(h), u = R.uc[h.usuario] || {}, t = tienda(h.ultimo_idpdv); const al = S.alertas.find(a => a.usuario === h.usuario); return { ...h, v, u, t: t || {}, ant: h.fecha_alta ? diffD(HOY, h.fecha_alta) : null, alerta: al }; });
-    const vis = rows.filter(r => R.incBaja || r.v.e !== 'Baja');
-    const cnt = {}; vis.forEach(r => cnt[r.v.e] = (cnt[r.v.e] || 0) + 1);
-    const ausN = vis.filter(r => !['Activo', 'Descanso / falta / error', 'Posible baja', 'Baja', 'Sin check'].includes(r.v.e));
-    let h = cab('HC · plantilla de promotoría', 'Promotores y cubre-descansos con su último check y estatus. El estatus se actualiza en vivo con las ausencias y bajas que RH captura en Posibles bajas.', 'mochila') + barraFiltros('vHC');
-    h += `<div class="tools"><button class="chip ${R.incBaja ? 'on' : ''}" onclick="R.incBaja=!R.incBaja;vHC()">Incluir bajas</button><span class="muted">${fmt(vis.length)} promotores · datos publicados ${esc(R.meta.generado)}</span></div>`;
-    h += `<div class="kpis">${kp('Plantilla', fmt(vis.filter(r => r.v.e !== 'Baja').length), 'sin bajas')}${kp('Activos hoy', fmt(cnt['Activo'] || 0), pc1(cnt['Activo'] || 0, vis.length), C.gr)}${kp('Descanso / falta', fmt(cnt['Descanso / falta / error'] || 0), 'último check ayer', C.am)}${kp('Posible baja', fmt(cnt['Posible baja'] || 0), '2 o más días sin check', C.rd, "ir('bandeja')")}${kp('Con ausencia', fmt(ausN.length), 'vacaciones, incapacidad…', C.bl, "ir('vigentes')")}${kp('Reingresos', fmt(vis.filter(r => r.tipo_ingreso === 'Reingreso').length), 'en la plantilla')}</div>`;
-    const bk = [['< 30 d', 0, 29], ['30–89 d', 30, 89], ['90–179 d', 90, 179], ['180–364 d', 180, 364], ['1 año o más', 365, 1e9]];
-    h += `<div class="grid g2"><div class="card"><h3>Estatus de la plantilla</h3>${donut(Object.entries(cnt).map(([k, v]) => ({ n: k, v, c: k === 'Activo' ? C.gr : k === 'Posible baja' ? C.rd : k === 'Descanso / falta / error' ? C.am : k === 'Baja' ? C.gy : C.bl })))}</div><div class="card"><h3>Antigüedad</h3>${hbars(bk.map(b => ({ n: b[0], v: vis.filter(r => r.ant != null && r.ant >= b[1] && r.ant <= b[2]).length })), C.pu)}</div></div>`;
-    TB = {};
-    h += sect('Promotores') + tbl('t-hc', [{ h: 'Usuario', t: 1, v: r => r.usuario }, { h: 'Nombre', t: 1, v: r => r.nombre }, { h: 'Estatus', t: 1, v: r => r.v.e, r: r => pillx(esc(r.v.e), ACTC[r.v.e] || 'b') + (r.v.det ? `<br><small class="muted">${esc(r.v.det)}</small>` : '') }, { h: 'Tipo ingreso', t: 1, v: r => r.tipo_ingreso, r: r => r.tipo_ingreso === 'Reingreso' ? pillx('Reingreso', 'b') : 'Nuevo' },
-      { h: 'Fecha de ingreso', v: r => r.fecha_alta, r: r => fdate(r.fecha_alta) }, { h: 'Baja anterior', v: r => r.tipo_ingreso === 'Reingreso' ? r.baja_final : null, r: r => r.tipo_ingreso === 'Reingreso' ? fdate(r.baja_final) : '—' }, { h: 'Antigüedad (d)', v: r => r.ant },
-      { h: 'Último check', v: r => r.ultimo_check, r: r => fdate(r.ultimo_check) + (r.u.hora_in ? `<br><small class="muted">${hh(r.u.hora_in)} – ${hh(r.u.hora_out)}</small>` : '') }, { h: 'Tipo de check', t: 1, v: r => r.rol, r: r => esc(r.rol || '—') + (r.u.estatus_check ? `<br><small class="muted">${esc(ERRN[r.u.estatus_check] || r.u.estatus_check)}</small>` : '') },
-      { h: 'Ausencia', t: 1, v: r => r.v.aus ? r.v.aus.motivo : '', r: r => r.v.aus ? `${esc(r.v.aus.motivo)}<br><small class="muted">${fdate(r.v.aus.inicio)} → ${fdate(r.v.aus.regreso)}</small>` : '—' },
-      { h: 'Tienda (último check)', t: 1, v: r => r.t.nombre || '', r: r => esc(r.t.nombre || '—') }, { h: 'Cadena', t: 1, v: r => r.t.cadena }, { h: 'Estado', t: 1, v: r => r.t.estado }, { h: 'Región', t: 1, v: r => r.t.region }, { h: 'Gerente', t: 1, v: r => r.t.gerente }, { h: 'Supervisor', t: 1, v: r => r.t.supervisor }, { h: 'RR.HH.', t: 1, v: r => r.t.rrhh }, { h: 'Empresa', t: 1, v: r => r.empresa },
-      { h: '', v: r => '', r: r => r.alerta && can('alertas', 'editar') ? `<button class="btn sm primary" onclick="resolverDesdeHC(${r.alerta.id})">Resolver</button>` : '' }], vis, { search: 1, csv: 1, file: 'hc_promotores', sort: 2, dir: 1, lim: 300 });
-    $('content').innerHTML = h; drawAll();
-  });
-}
-function resolverDesdeHC(id) { S.view = 'bandeja'; nav(); render(); setTimeout(() => abrir('aus', id), 80); }
-
-/* ----- datos de ejemplo para los reportes (ficticios) ----- */
-(function () {
-  const rnd = (() => { let s = 7; return () => (s = (s * 16807) % 2147483647) / 2147483647; })();
-  const ri = (a, b) => a + Math.floor(rnd() * (b - a + 1));
-  let cache = null;
-  function monday(d) { const x = new Date(d + 'T12:00:00'); const k = (x.getDay() + 6) % 7; x.setDate(x.getDate() - k); return x.getFullYear() + '-' + pad(x.getMonth() + 1) + '-' + pad(x.getDate()); }
-  function build() {
-    const tiendas = Object.values(S.cat.tiendas); const m0 = monday(HOY);
-    const ventana = Array.from({ length: 10 }, (_, k) => { const ini = addD(m0, -7 * (9 - k)); return { w: '26-S' + (31 + k), ini }; });
-    const sa = Array.from({ length: 40 }, (_, k) => ({ w: '26-S' + pad(k + 1), ini: addD(m0, -7 * (39 - k)) }));
-    const f0 = addD(HOY, -90); const nd = 91;
-    const meses = []; for (let i = 3; i >= 0; i--) { const d = new Date(HOY + 'T12:00:00'); d.setDate(1); d.setMonth(d.getMonth() - i); meses.push(d.getFullYear() + '-' + pad(d.getMonth() + 1)); }
-    const tien = tiendas.map(t => {
-      const posc = 1 + (t.idpdv % 2), cuota = posc * 6;
-      const sem = ventana.map((w, i) => { const e = rnd() < 0.72 ? 0 : rnd() < 0.5 ? 1 : 2; const ch = e === 2 ? ri(0, 2) : ri(Math.max(2, cuota - 3), cuota + 2); return [e, ch, cuota, posc * 9, Math.max(0, cuota - ch), Math.max(0, ch - posc * 9), ch / 7 * 7, 0, addD(w.ini, ri(2, 6))]; });
-      const chk = ventana.map(() => { const d = ri(4, 13), c = Math.round(d * (0.8 + rnd() * 0.2)), pr = ri(0, 3); const e = Array.from({ length: 9 }, () => ri(0, 2)); e[0] = c; return [ri(1, 3), d, c, pr, 0, ...e]; });
-      let dias = ''; for (let i = 0; i < nd; i++) dias += rnd() < 0.8 ? 'C' : '0';
-      if (t.idpdv % 7 === 0) dias = dias.slice(0, nd - 5) + '00000'; if (t.idpdv % 5 === 0) dias = dias.slice(0, nd - 4) + '0000'; if (t.idpdv % 6 === 0) dias = dias.slice(0, nd - 3) + '000';
-      const pen = meses.map((m, k) => { const act = k === meses.length - 1; const mx = act ? (dias.match(/0+$/) || [''])[0].length : ri(0, 6); const e = mx >= 5 ? 2 : mx >= 3 ? 1 : 0; const ra = act ? mx : 0;
-        return { m, e: act && ra >= 3 && ra < 5 ? 1 : e, pa: mx >= 3 ? `${ri(1, 20)} al ${ri(21, 28)} ${MESN[+m.slice(5) - 1]}.` : null, dr: mx >= 3 ? mx : 0, mx, pm: mx >= 2 ? `${ri(1, 10)} al ${ri(11, 20)} ${MESN[+m.slice(5) - 1]}.` : null, ds: ri(mx, mx + 5), ul: addD(HOY, -ri(0, 4)), ra, hoy: act ? (rnd() < 0.3 ? 'A' : '0') : null, rs: mx >= 2 ? [[mx, addD(HOY, -mx), addD(HOY, -1)]] : [], act }; });
-      let cd = ''; for (let q = 0; q < 70; q++) cd += rnd() < 0.82 ? String(ri(1, posc + 1)) : '0'; if (t.idpdv % 7 === 0) cd = cd.slice(0, 66) + '0000'; if (t.idpdv % 4 === 0) cd = cd.slice(0, 68) + '00';
-      return { idpdv: t.idpdv, semanas: sem, chk: { s: chk, cd }, dias, hc_sem: sa.map(() => ri(1, 3)), pen };
-    });
-    const nom = ['Ana Solís', 'Luis Ortega', 'María Cruz', 'José Reyes', 'Daniela Ruiz', 'Carlos Mora', 'Paola Estrada', 'Jorge Lara', 'Valeria Núñez', 'Diego Gil', 'Karla Vega', 'Miguel Soto', 'Fátima Luna', 'Ricardo Salas', 'Brenda Morales'];
-    const hc = Array.from({ length: 70 }, (_, i) => { const t = tiendas[i % tiendas.length]; const dsc = i % 9 === 0 ? ri(2, 12) : i % 5 === 0 ? 1 : 0; const aus = i % 11 === 0; return { usuario: 'DEMO' + (100 + i), nombre: nom[i % 15] + ' ' + (i + 1), fecha_alta: addD(HOY, -ri(10, 700)), baja_final: i % 6 === 0 ? addD(HOY, -ri(200, 600)) : null, estatus_modelo: i % 6 === 0 ? 'Reingreso' : 'Activo', tipo_ingreso: i % 6 === 0 ? 'Reingreso' : 'Nuevo', empresa: ['Benber SS', 'Revelor', 'Doma Legal'][i % 3], ultimo_check: addD(HOY, -dsc), ultimo_idpdv: t.idpdv, ausencia_dias: aus ? 5 : null, ausencia_regreso: aus ? addD(HOY, 2) : null, ausencia_motivo: aus ? 'Vacaciones' : null, rol: i % 8 === 0 ? 'Cubre descansos' : 'Promotor' }; });
-    const uc = hc.map(h => ({ usuario: h.usuario, fecha: h.ultimo_check, idpdv: h.ultimo_idpdv, rol: h.rol, hora_in: '09:' + pad(ri(0, 55)) + ':00', hora_out: '18:' + pad(ri(0, 50)) + ':00', estatus_check: rnd() < 0.8 ? 'Cumple' : 'Error Comida', validacion: 'Cumple' }));
-    const movs = []; ['2026-01', '2026-02', '2026-03', '2026-04', '2026-05', '2026-06', '2026-07', '2026-08', '2026-09', '2026-10'].forEach(m => { for (let k = 0; k < ri(8, 14); k++) movs.push({ tipo: 'Alta', fecha: m + '-10', idpdv: tiendas[ri(0, tiendas.length - 1)].idpdv }); for (let k = 0; k < ri(8, 15); k++) movs.push({ tipo: 'Baja', fecha: m + '-12', idpdv: tiendas[ri(0, tiendas.length - 1)].idpdv }); });
-    return { meta: { ventana, cd_desde: ventana[0].ini, ultima_fecha: HOY, dias_desde: f0, dias_n: nd, hoy: HOY, estatus_check: [], semanas_anio: sa, generado: 'datos de ejemplo' }, tiendas: tien, hc, uc, movs, bajas: [] };
-  }
-  Demo.reporte = async function () { if (!cache) cache = build(); return cache; };
-  Demo.checks = async function (desde, hasta) {
-    const out = []; const tiendas = Object.values(S.cat.tiendas).slice(0, 30); let k = 0;
-    for (let d = 0; d < 7; d++) { const f = addD(desde, d); if (f > HOY) continue; tiendas.forEach((t, j) => { for (let n = 0; n < 2; n++) { k++; const r = rnd(); const est = r < 0.78 ? 'Cumple' : r < 0.84 ? 'Error Comida' : r < 0.9 ? 'Check Out Fuera Ventana' : r < 0.94 ? 'Tiempo Incompleto' : r < 0.97 ? 'Check In Fuera Rango' : 'No Check Salida'; const v = est === 'Cumple' ? 'Cumple' : (rnd() < 0.5 ? 'Cumple Productividad' : 'No Cumple'); const reg = v === 'Cumple Productividad' ? ri(1, 4) : (rnd() < 0.5 ? ri(0, 3) : 0);
-      out.push({ id: 'k' + k, semana: '', fecha: f, usuario: 'DEMO' + (100 + (k % 60)), nombre: ['Ana Solís', 'Luis Ortega', 'María Cruz', 'José Reyes'][k % 4] + ' ' + (k % 60), idpdv: t.idpdv, rol: 'Promotor', hora_in: '09:' + pad(ri(0, 59)) + ':10', hora_com_in: '13:' + pad(ri(0, 30)) + ':00', hora_com_out: '14:' + pad(ri(0, 30)) + ':00', hora_out: '18:' + pad(ri(0, 59)) + ':00', tiempo_ub: est === 'Tiempo Incompleto' ? ri(300, 470) : ri(480, 560), tiempo_com: ri(10, 60), rango_in: est === 'Check In Fuera Rango' ? 'Fuera de Rango' : 'Dentro de Rango', rango_out: 'Dentro de Rango', equipo_dup: false, estatus_check: est, validacion: v, estatus_final: v, registros: reg, temm: Math.min(reg, 1), porta: reg > 1 ? 1 : 0, pospago: 0, prepago: Math.max(0, reg - 1), check_tel: 0 }); } }); }
-    return out;
-  };
-})();
-
+/* >>> 05_ingresos.js */
 /* ====================================================================== POSIBLES INGRESOS ====================================================================== */
 const ESTI = ['Programado', 'Confirmado', 'Ingresó', 'No llegó', 'Declinó', 'No contesta', 'Reagenda'];
 const ESTC = { 'Programado': 'x', 'Confirmado': 'b', 'Ingresó': 'g', 'No llegó': 'r', 'Declinó': 'r', 'No contesta': 'a', 'Reagenda': 'a' };
-const norm = s => String(s == null ? '' : s).normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().replace(/\s+/g, ' ').trim();
 const IG = { tab: 'captura', cat: null, grid: [], lista: [], per: '90', loaded: false };
 const DIAS_SEM = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
 const fdia = s => { const d = new Date(s + 'T12:00:00'); return DIAS_SEM[d.getDay()] + ' ' + fdate(s); };
@@ -611,6 +688,7 @@ Real.insertarCandidatos = async function (rows) {
   for (let i = 0; i < rows.length; i += 200) { const parte = rows.slice(i, i + 200).map(r => ({ ...r, lote, origen: 'app' })); const { error } = await sb.from('candidatos').insert(parte); if (error) throw error; n += parte.length; }
   return n;
 };
+Real.eliminarCandidato = async function (id) { const { error } = await sb.from('candidatos').delete().eq('id', id); if (error) throw error; };
 Real.actualizarCandidato = async function (id, patch) { const { error } = await sb.from('candidatos').update(patch).eq('id', id); if (error) throw error; };
 
 Demo.catIngresos = async function () {
@@ -631,6 +709,7 @@ Demo.candidatos = async function (desde, hasta) {
   return Demo._cands.filter(c => c.fecha_programada >= desde && c.fecha_programada <= hasta);
 };
 Demo.insertarCandidatos = async function (rows) { await new Promise(r => setTimeout(r, 300)); rows.forEach(r => Demo._cands.push({ id: 'N' + Math.random(), reagendas: 0, estatus: 'Programado', ...r })); return rows.length; };
+Demo.eliminarCandidato = async function (id) { Demo._cands = Demo._cands.filter(x => x.id !== id); };
 Demo.actualizarCandidato = async function (id, patch) { const c = Demo._cands.find(x => x.id === id); Object.assign(c, patch); };
 
 /* ----- normalización de lo que se pega desde Excel ----- */
@@ -703,7 +782,7 @@ async function cargarCands() { IG.lista = await API.candidatos(addD(HOY, -120), 
 function tCaptura() {
   const prop = S.me.permisos.posibles_ingresos.alcance === 'propio';
   let h = `<div class="card"><div class="note">Copia las filas de tu Excel (sin encabezados) en este orden: <b>fecha · nombre · IDPDV · medio · reclutado por · generado por · experiencia · acompañamiento · referido por · comentarios</b>, haz clic en la primera celda y pega con <b>Ctrl+V</b>. También puedes escribir directo. Lo que no se reconozca queda en rojo para que lo corrijas.</div>
-  <div class="tools"><button class="btn sm" onclick="IG.grid.push(...Array.from({length:10},filaVacia));tCaptura()">+ 10 filas</button><button class="btn sm" onclick="limpiarVacias()">Quitar filas vacías</button><button class="btn sm" onclick="IG.grid=Array.from({length:12},filaVacia);tCaptura()">Empezar de nuevo</button><span class="muted" id="g-res"></span><button class="btn primary" id="g-ok" style="margin-left:auto" onclick="guardarGrid()">Guardar candidatos</button></div>
+  <div class="tools"><button class="btn sm" onclick="IG.grid.push(...Array.from({length:10},filaVacia));tCaptura()">+ 10 filas</button><button class="btn sm" onclick="limpiarVacias()">Quitar filas vacías</button><label class="btn sm xl-btn">📂 Cargar Excel<input type="file" accept=".xlsx,.xls,.csv" hidden onchange="importarExcel(this.files[0]);this.value=''"></label><button class="btn sm" onclick="IG.grid=Array.from({length:12},filaVacia);tCaptura()">Empezar de nuevo</button><span class="muted" id="g-res"></span><button class="btn primary" id="g-ok" style="margin-left:auto" onclick="guardarGrid()">Guardar candidatos</button></div>
   <div class="tbl-wrap grid-wrap"><table class="dt gt" id="gt"><thead><tr><th>#</th>${CAMPOS.map(c => `<th style="min-width:${c.w}px">${c.h}</th>`).join('')}<th></th></tr></thead><tbody>${IG.grid.map((r, i) => filaGrid(r, i)).join('')}</tbody></table></div></div>`;
   $('ig-body').innerHTML = h; resumenGrid();
   const t = $('gt');
@@ -743,21 +822,47 @@ async function guardarGrid() {
   catch (e) { b.disabled = false; b.textContent = 'Guardar candidatos'; toast('No se pudo guardar: ' + (e.message || e)); }
 }
 
+/* ----- importar Excel ----- */
+const ENC = { fecha: /^(FECHA|DIA|FECHA DE INGRESO)/, nombre: /^NOMBRE/, idpdv: /^ID ?PDV/, fuente: /^MEDIO/, recl: /^RECLUTADO/, generado: /^GENERADO/, experiencia: /^EXPERIENCIA/, acomp: /^ACOMPA/, referido: /^REFERIDO/, coment: /^COMENT/ };
+function celdaTxt(v, k) {
+  if (v == null || v === '') return '';
+  if (k === 'fecha' && typeof v === 'number') { const d = new Date(Math.round((v - 25569) * 864e5)); return d.getUTCFullYear() + '-' + pad(d.getUTCMonth() + 1) + '-' + pad(d.getUTCDate()); }
+  if (k === 'fecha' && v instanceof Date) return v.getFullYear() + '-' + pad(v.getMonth() + 1) + '-' + pad(v.getDate());
+  return String(v);
+}
+async function importarExcel(file) {
+  if (!file) return;
+  if (!window.XLSX) { toast('El lector de Excel no cargó (revisa tu conexión).'); return; }
+  try {
+    const wb = XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: true }); const ws = wb.Sheets[wb.SheetNames[0]];
+    const m = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: '' });
+    let hi = m.slice(0, 15).findIndex(r => r.some(c => /^NOMBRE/.test(norm(c))));
+    const map = {}; if (hi >= 0) m[hi].forEach((c, j) => { const n = norm(c); for (const [k, re] of Object.entries(ENC)) if (re.test(n) && map[k] == null) map[k] = j; });
+    const filas = m.slice(hi + 1).filter(r => r.some(c => String(c).trim() !== ''));
+    const orden = CAMPOS.map(c => c.k); let n = 0, vac = 0;
+    const nuevas = filas.map(r => { const o = filaVacia(); orden.forEach((k, j) => { const col = hi >= 0 && Object.keys(map).length >= 3 ? map[k] : j; if (col != null) o[k] = valorPegado(k, celdaTxt(r[col], k)); }); return o; }).filter(o => o.nombre || o.idpdv);
+    IG.grid = IG.grid.filter(r => !vacia(r)).concat(nuevas); while (IG.grid.length < 12) IG.grid.push(filaVacia());
+    tCaptura(); toast(`${nuevas.length} fila${nuevas.length === 1 ? '' : 's'} leída${nuevas.length === 1 ? '' : 's'} del Excel: revisa las que quedaron en rojo`);
+  } catch (e) { console.error(e); toast('No pude leer el archivo: ' + (e.message || e)); }
+}
+
 /* ----- seguimiento ----- */
+const okAlc = c => c.idpdv == null ? !Object.values(FL).some(Boolean) : okI(c.idpdv);
+const nombreRecl = id => (IG.cat.recl.find(x => x.id === id) || {}).nombre || '—';
+const nombreFuente = id => (IG.cat.fuentes.find(x => x.id === id) || {}).fuente || '—';
+const PEND = ['Programado', 'Confirmado', 'Reagenda'];
 function tSeguimiento() {
-  const rangos = { hoy: ['Hoy', HOY, HOY], man: ['Mañana', addD(HOY, 1), addD(HOY, 1)], sem: ['Próximos 7 días', HOY, addD(HOY, 7)], pend: ['Por cerrar (pasados sin resultado)', addD(HOY, -30), addD(HOY, -1)] };
-  const k = IG.rg || 'man'; const [nm, d1, d2] = rangos[k];
-  const todos = IG.lista.filter(c => okAlc(c));
-  const pen = c => (c.estatus === 'Programado' || c.estatus === 'Confirmado' || c.estatus === 'Reagenda');
+  const rangos = { hoy: ['Hoy', HOY, HOY], man: ['Mañana', addD(HOY, 1), addD(HOY, 1)], sem: ['Próximos 7 días', HOY, addD(HOY, 7)], pend: ['⏰ Por cerrar', addD(HOY, -30), addD(HOY, -1)] };
+  const k = IG.rg || 'man', [nm, d1, d2] = rangos[k];
+  const todos = IG.lista.filter(okAlc), pen = c => PEND.includes(c.estatus);
   const en = todos.filter(c => c.fecha_programada >= d1 && c.fecha_programada <= d2 && (k !== 'pend' || pen(c)));
-  const porCerrar = todos.filter(c => c.fecha_programada < HOY && pen(c)).length;
-  const mañ = todos.filter(c => c.fecha_programada === addD(HOY, 1));
-  let h = `<div class="kpis"><div class="kpi"><div class="l">Programados mañana</div><div class="v">${mañ.length}</div><div class="s">${mañ.filter(c => c.estatus === 'Confirmado').length} confirmados</div></div>
-    <div class="kpi"><div class="l">Programados hoy</div><div class="v">${todos.filter(c => c.fecha_programada === HOY).length}</div><div class="s">${todos.filter(c => c.fecha_programada === HOY && c.estatus === 'Ingresó').length} ya ingresaron</div></div>
-    <div class="kpi ${porCerrar ? 'click' : ''}" onclick="IG.rg='pend';tSeguimiento()"><div class="l">Por cerrar</div><div class="v" style="color:${porCerrar ? 'var(--red)' : 'var(--green)'}">${porCerrar}</div><div class="s">fecha pasada sin resultado</div></div></div>`;
-  h += `<div class="tools">${Object.entries(rangos).map(([kk, v]) => `<button class="chip ${k === kk ? 'on' : ''}" onclick="IG.rg='${kk}';tSeguimiento()">${v[0]}</button>`).join('')}<input type="search" id="sg-q" placeholder="Buscar nombre…" value="${esc(IG.sq || '')}"><button class="btn sm" onclick="copiarMensaje()" title="Copia el resumen de mañana por estado para enviarlo a Operaciones">📋 Mensaje para Operaciones</button></div>`;
-  const q = norm(IG.sq || ''); const f = en.filter(c => !q || norm(c.nombre).includes(q));
-  const dias = [...new Set(f.map(c => c.fecha_programada))].sort();
+  const porCerrar = todos.filter(c => c.fecha_programada < HOY && pen(c)).length, man = todos.filter(c => c.fecha_programada === addD(HOY, 1));
+  let h = barraFiltros('tSeguimiento', IG.lista.map(c => tienda(c.idpdv)).filter(Boolean), ['region', 'gerente', 'supervisor', 'zona_rrhh', 'rrhh', 'cadena']);
+  h += `<div class="kpis"><div class="kpi"><div class="l">📅 Programados mañana</div><div class="v">${man.length}</div><div class="s">${man.filter(c => c.estatus === 'Confirmado').length} confirmados</div></div>
+    <div class="kpi"><div class="l">☀️ Programados hoy</div><div class="v">${todos.filter(c => c.fecha_programada === HOY).length}</div><div class="s">${todos.filter(c => c.fecha_programada === HOY && c.estatus === 'Ingresó').length} ya ingresaron</div></div>
+    <div class="kpi ${porCerrar ? 'click' : ''}" onclick="IG.rg='pend';tSeguimiento()"><div class="l">⏰ Por cerrar</div><div class="v" style="color:${porCerrar ? 'var(--red)' : 'var(--green)'}">${porCerrar}</div><div class="s">fecha pasada sin resultado</div></div></div>`;
+  h += `<div class="tools">${Object.entries(rangos).map(([kk, v]) => `<button class="chip ${k === kk ? 'on' : ''}" onclick="IG.rg='${kk}';tSeguimiento()">${v[0]}</button>`).join('')}<input type="search" id="sg-q" placeholder="🔎 Buscar nombre…" value="${esc(IG.sq || '')}"><button class="btn sm primary" onclick="modalOperaciones()">📲 Mensaje para Operaciones</button></div>`;
+  const q = norm(IG.sq || ''), f = en.filter(c => !q || norm(c.nombre).includes(q)), dias = [...new Set(f.map(c => c.fecha_programada))].sort();
   if (!f.length) h += `<div class="card empty"><img src="${img('pulgares')}" alt="">No hay candidatos en este rango.</div>`;
   for (const d of dias) {
     const g = f.filter(c => c.fecha_programada === d);
@@ -766,60 +871,188 @@ function tSeguimiento() {
   $('ig-body').innerHTML = h;
   $('sg-q').oninput = e => { IG.sq = e.target.value; clearTimeout(IG.t); IG.t = setTimeout(() => { const p = e.target.selectionStart; tSeguimiento(); const q2 = $('sg-q'); q2.focus(); q2.setSelectionRange(p, p); }, 250); };
 }
-const okAlc = c => c.idpdv == null ? !anyFilt() : true;
-const anyFilt = () => false;
-const nombreRecl = id => (IG.cat.recl.find(x => x.id === id) || {}).nombre || '—';
-const nombreFuente = id => (IG.cat.fuentes.find(x => x.id === id) || {}).fuente || '—';
 function filaCand(c) {
   const t = tienda(c.idpdv);
-  const ac = can('posibles_ingresos', 'editar') ? `<div class="acts">${c.estatus === 'Programado' ? `<button class="btn sm" onclick="cambiarEst('${c.id}','Confirmado')">Confirmó</button>` : ''}
-    ${c.estatus !== 'Ingresó' ? `<button class="btn sm primary" onclick="modalIngreso('${c.id}')">Ingresó</button><button class="btn sm" onclick="cambiarEst('${c.id}','No llegó')">No llegó</button><button class="btn sm" onclick="cambiarEst('${c.id}','No contesta')">No contesta</button><button class="btn sm" onclick="cambiarEst('${c.id}','Declinó')">Declinó</button><button class="btn sm" onclick="modalReagendar('${c.id}')">Reagendar</button>` : ''}</div>` : '';
+  const ac = can('posibles_ingresos', 'editar') ? `<div class="acts">${c.estatus === 'Programado' ? `<button class="btn sm" onclick="cambiarEst('${c.id}','Confirmado')">✔️ Confirmó</button>` : ''}
+    ${c.estatus !== 'Ingresó' ? `<button class="btn sm primary" onclick="modalIngreso('${c.id}')">🙌 Ingresó</button><button class="btn sm" onclick="cambiarEst('${c.id}','No llegó')">🚫 No llegó</button><button class="btn sm" onclick="cambiarEst('${c.id}','No contesta')">📵 No contesta</button><button class="btn sm" onclick="cambiarEst('${c.id}','Declinó')">✖️ Declinó</button><button class="btn sm" onclick="modalReagendar('${c.id}')">🔁 Reagendar</button>` : ''}${can('posibles_ingresos', 'borrar') ? `<button class="btn sm danger" title="Eliminar (creado por error)" onclick="eliminarCand('${c.id}')">🗑</button>` : ''}</div>` : '';
   return `<div class="cd"><div class="who"><b>${esc(c.nombre)}</b><small>${t ? esc(t.nombre) + ' · ' + esc(t.estado) : 'Tienda no identificada'}</small></div>
     <div class="muted">${esc(nombreFuente(c.fuente_id))} · ${esc(nombreRecl(c.reclutador_id))}${c.generado_por ? ' · ' + esc(c.generado_por) : ''}${c.reagendas ? ' · reagendó ' + c.reagendas + 'x' : ''}</div>
     <div><span class="pill ${ESTC[c.estatus] || 'x'}">${esc(c.estatus)}</span>${c.usuario_fieldwy ? `<br><small class="muted">${esc(c.usuario_fieldwy)}</small>` : ''}</div>${ac}</div>`;
 }
-async function cambiarEst(id, est) {
-  try { await API.actualizarCandidato(id, { estatus: est }); const c = IG.lista.find(x => x.id === id); c.estatus = est; toast(est); tSeguimiento(); } catch (e) { toast('No se pudo guardar: ' + (e.message || e)); }
+async function cambiarEst(id, est) { try { await API.actualizarCandidato(id, { estatus: est }); IG.lista.find(x => x.id === id).estatus = est; toast(est); tSeguimiento(); } catch (e) { toast('No se pudo guardar: ' + (e.message || e)); } }
+async function eliminarCand(id) {
+  const c = IG.lista.find(x => x.id === id); if (!confirm(`¿Eliminar a "${c.nombre}"? Solo debe usarse para candidatos creados por error. No se puede deshacer.`)) return;
+  try { await API.eliminarCandidato(id); IG.lista = IG.lista.filter(x => x.id !== id); toast('Candidato eliminado'); tSeguimiento(); } catch (e) { toast('No se pudo eliminar: ' + (e.message || e)); }
 }
 function modalIngreso(id) {
   const c = IG.lista.find(x => x.id === id);
-  $('modal').innerHTML = `<div class="mbox"><h3>Ingresó</h3><div class="who">${esc(c.nombre)}</div><div class="fld"><label>Usuario Fieldwy (opcional por ahora)</label><input id="m-usr" placeholder="Ej. ABCD010203" autocapitalize="characters"></div><div class="note">Con el usuario Fieldwy se enlaza después con su asistencia, su plantilla y su baja.</div><div class="mfoot"><button class="btn" onclick="cerrarM()">Cancelar</button><button class="btn primary" id="m-ok">Guardar ingreso</button></div></div>`; $('modal').hidden = false;
+  $('modal').innerHTML = `<div class="mbox"><h3>🙌 Ingresó</h3><div class="who">${esc(c.nombre)}</div><div class="fld"><label>Usuario Fieldwy (opcional por ahora)</label><input id="m-usr" placeholder="Ej. ABCD010203" autocapitalize="characters"></div><div class="note">Con el usuario Fieldwy se enlaza después con su asistencia, su plantilla y su baja.</div><div class="mfoot"><button class="btn" onclick="cerrarM()">Cancelar</button><button class="btn primary" id="m-ok">Guardar ingreso</button></div></div>`; $('modal').hidden = false;
   $('modal').onclick = e => { if (e.target.id === 'modal') cerrarM(); };
   $('m-ok').onclick = async () => { const u = $('m-usr').value.trim().toUpperCase(); try { await API.actualizarCandidato(id, { estatus: 'Ingresó', usuario_fieldwy: u || null }); c.estatus = 'Ingresó'; c.usuario_fieldwy = u || null; cerrarM(); toast('Ingreso registrado'); tSeguimiento(); } catch (e) { toast('No se pudo guardar: ' + (e.message || e)); } };
 }
 function modalReagendar(id) {
   const c = IG.lista.find(x => x.id === id);
-  $('modal').innerHTML = `<div class="mbox"><h3>Reagendar</h3><div class="who">${esc(c.nombre)} · estaba para ${fdate(c.fecha_programada)}</div><div class="fld"><label>Nueva fecha</label><input type="date" id="m-f" value="${addD(HOY, 1)}" min="${HOY}"></div><div class="mfoot"><button class="btn" onclick="cerrarM()">Cancelar</button><button class="btn primary" id="m-ok">Reagendar</button></div></div>`; $('modal').hidden = false;
+  $('modal').innerHTML = `<div class="mbox"><h3>🔁 Reagendar</h3><div class="who">${esc(c.nombre)} · estaba para ${fdate(c.fecha_programada)}</div><div class="fld"><label>Nueva fecha</label><input type="date" id="m-f" value="${addD(HOY, 1)}" min="${HOY}"></div><div class="mfoot"><button class="btn" onclick="cerrarM()">Cancelar</button><button class="btn primary" id="m-ok">Reagendar</button></div></div>`; $('modal').hidden = false;
   $('modal').onclick = e => { if (e.target.id === 'modal') cerrarM(); };
   $('m-ok').onclick = async () => { const f = $('m-f').value; if (!f) return; try { await API.actualizarCandidato(id, { fecha_programada: f, estatus: 'Programado', reagendas: (c.reagendas || 0) + 1 }); c.fecha_programada = f; c.estatus = 'Programado'; c.reagendas = (c.reagendas || 0) + 1; cerrarM(); toast('Reagendado para ' + fdate(f)); tSeguimiento(); } catch (e) { toast('No se pudo guardar: ' + (e.message || e)); } };
 }
-function copiarMensaje() {
-  const d = addD(HOY, 1), g = IG.lista.filter(c => c.fecha_programada === d && ['Programado', 'Confirmado', 'Reagenda'].includes(c.estatus));
-  const por = {}; g.forEach(c => { const t = tienda(c.idpdv); const e = t ? t.estado : 'Sin tienda'; (por[e] = por[e] || []).push(c); });
-  const L = Object.entries(por).sort((a, b) => b[1].length - a[1].length).map(([e, v]) => `• ${e}: ${v.length} (${v.filter(c => c.estatus === 'Confirmado').length} confirmados)`);
-  const txt = `📲 *Ingresos programados – ${fdia(d)}*\n\n*${g.length} ingresos programados* (${g.filter(c => c.estatus === 'Confirmado').length} confirmados)\n\n${L.join('\n')}`;
-  if (navigator.clipboard) navigator.clipboard.writeText(txt).then(() => toast('Mensaje copiado')).catch(() => prompt('Copia el mensaje:', txt)); else prompt('Copia el mensaje:', txt);
+
+/* ----- esquema de ingresos (como el que envía RH a Operaciones) y mensaje ----- */
+const CADS = ['Coppel', 'Elektra', 'Suburbia', 'Cimaco'];
+function esquemaHtml(rows, titulo) {
+  const cad = [...CADS, ...new Set(rows.map(c => (tienda(c.idpdv) || {}).cadena).filter(x => x && !CADS.includes(x)))];
+  const reg = new Map(); rows.forEach(c => { const t = tienda(c.idpdv) || {}; const r = t.region || 'Sin región', g = t.gerente || 'Sin gerente'; if (!reg.has(r)) reg.set(r, new Map()); const m = reg.get(r); if (!m.has(g)) m.set(g, {}); const o = m.get(g); o[t.cadena || '—'] = (o[t.cadena || '—'] || 0) + 1; });
+  const sum = o => Object.values(o).reduce((a, b) => a + b, 0); let body = '';
+  const tot = {}; [...reg].sort((a, b) => a[0].localeCompare(b[0])).forEach(([r, gs]) => {
+    const ro = {}; gs.forEach(o => Object.entries(o).forEach(([c, v]) => ro[c] = (ro[c] || 0) + v));
+    body += `<tr class="rg"><td>⊟ ${esc(r)}</td>${cad.map(c => `<td>${ro[c] || ''}</td>`).join('')}<td><b>${sum(ro)}</b></td></tr>`;
+    [...gs].sort((a, b) => sum(b[1]) - sum(a[1])).forEach(([g, o]) => { body += `<tr><td class="gg">${esc(g)}</td>${cad.map(c => `<td>${o[c] || ''}</td>`).join('')}<td>${sum(o)}</td></tr>`; });
+    Object.entries(ro).forEach(([c, v]) => tot[c] = (tot[c] || 0) + v);
+  });
+  return `<div class="esq"><table><thead><tr><th class="e1">${esc(titulo)}<small>REGIÓN / GERENTE</small></th>${cad.map(c => `<th>${esc(c)}</th>`).join('')}<th>Total</th></tr></thead><tbody>${body || `<tr><td colspan="${cad.length + 2}" class="empty-in">Sin candidatos</td></tr>`}<tr class="tt"><td>Total general</td>${cad.map(c => `<td>${tot[c] || ''}</td>`).join('')}<td>${sum(tot)}</td></tr></tbody></table></div>`;
+}
+function modalOperaciones() {
+  const d = IG.opd || addD(HOY, 1);
+  const g = IG.lista.filter(c => okAlc(c) && c.fecha_programada === d && [...PEND, 'Ingresó'].includes(c.estatus));
+  const por = {}; g.forEach(c => { const e = (tienda(c.idpdv) || {}).estado || 'Sin tienda'; (por[e] = por[e] || []).push(c); });
+  const txt = `📲 *Ingresos programados – ${fdia(d)}*\n\n*${g.length} ingresos programados* (${g.filter(c => c.estatus === 'Confirmado').length} confirmados)\n\n` + Object.entries(por).sort((a, b) => b[1].length - a[1].length).map(([e, v]) => `• ${e}: ${v.length} (${v.filter(c => c.estatus === 'Confirmado').length} confirmados)`).join('\n');
+  $('modal').innerHTML = `<div class="mbox wide"><h3>📲 Mensaje y esquema para Operaciones</h3><div class="fld"><label>Día</label><input type="date" id="op-d" value="${d}"></div><div id="op-esq">${esquemaHtml(g, 'RESUMEN DE POSIBLES INGRESOS')}</div><div class="fld"><label>Texto para WhatsApp</label><textarea id="op-t" rows="7">${esc(txt)}</textarea></div>
+    <div class="mfoot"><button class="btn" onclick="cerrarM()">Cerrar</button><button class="btn" onclick="capturaCopiar($('op-esq'),'Posibles ingresos · ${fdia(d)}','Operaciones')">📋 Copiar imagen</button><button class="btn" onclick="capturaDescargar($('op-esq'),'Posibles ingresos · ${fdia(d)}','Operaciones','esquema_ingresos')">📸 Descargar imagen</button><button class="btn primary" onclick="navigator.clipboard.writeText($('op-t').value).then(()=>toast('Texto copiado'))">📋 Copiar texto</button></div></div>`; $('modal').hidden = false;
+  $('modal').onclick = e => { if (e.target.id === 'modal') cerrarM(); }; $('op-d').onchange = e => { IG.opd = e.target.value; modalOperaciones(); };
 }
 
 /* ----- resumen y conversión ----- */
+const VER = [['cand', 'Candidato'], ['supervisor', 'Supervisor'], ['zona_rrhh', 'Gerencia RR.HH.'], ['rrhh', 'RR.HH.'], ['recl', 'Reclutador'], ['fuente', 'Medio'], ['estado', 'Estado'], ['region', 'Región']];
 function tResumen() {
-  const per = IG.per, desde = per === 'all' ? '0000' : addD(HOY, -(+per));
-  const c = IG.lista.filter(x => x.fecha_programada >= desde && x.fecha_programada < HOY);
-  const cerr = c.filter(x => !['Programado', 'Confirmado'].includes(x.estatus));
-  const ing = cerr.filter(x => x.estatus === 'Ingresó').length;
-  const cnt = e => cerr.filter(x => x.estatus === e).length;
-  const tabla = (titulo, keyf, namef) => {
-    const g = new Map(); cerr.forEach(x => { const k = keyf(x); if (!g.has(k)) g.set(k, []); g.get(k).push(x); });
-    const rows = [...g].map(([k, v]) => ({ n: namef(k), p: v.length, i: v.filter(x => x.estatus === 'Ingresó').length, nl: v.filter(x => x.estatus === 'No llegó').length, d: v.filter(x => x.estatus === 'Declinó').length, nc: v.filter(x => x.estatus === 'No contesta').length })).sort((a, b) => b.p - a.p).slice(0, 25);
-    return `<h3 style="margin:18px 0 8px;font-size:14.5px">${titulo}</h3><div class="tbl-wrap"><table class="dt"><thead><tr><th>${titulo.replace('Por ', '')}</th><th>Programados</th><th>Ingresos</th><th>Conversión</th><th>No llegó</th><th>Declinó</th><th>No contesta</th></tr></thead><tbody>${rows.map(r => `<tr><td><b>${esc(r.n)}</b></td><td>${r.p}</td><td>${r.i}</td><td><span class="pill ${r.i / r.p >= 0.7 ? 'g' : r.i / r.p >= 0.5 ? 'a' : 'r'}">${(r.i / r.p * 100).toFixed(0)}%</span></td><td>${r.nl}</td><td>${r.d}</td><td>${r.nc}</td></tr>`).join('')}</tbody></table></div>`;
-  };
-  let h = `<div class="tools"><span>Periodo:</span><select onchange="IG.per=this.value;tResumen()">${[['30', 'Últimos 30 días'], ['60', 'Últimos 60 días'], ['90', 'Últimos 90 días'], ['all', 'Todo lo cargado']].map(([v, t]) => `<option value="${v}" ${IG.per === v ? 'selected' : ''}>${t}</option>`).join('')}</select><span class="muted">${fmt(cerr.length)} candidatos con resultado · no incluye los que siguen programados</span></div>
-    <div class="kpis"><div class="kpi"><div class="l">Programados</div><div class="v">${fmt(cerr.length)}</div></div><div class="kpi"><div class="l">Ingresaron</div><div class="v" style="color:var(--green)">${fmt(ing)}</div></div>
-    <div class="kpi"><div class="l">Conversión</div><div class="v">${cerr.length ? (ing / cerr.length * 100).toFixed(1) + '%' : '—'}</div></div><div class="kpi"><div class="l">No llegó</div><div class="v" style="color:var(--red)">${cnt('No llegó')}</div></div><div class="kpi"><div class="l">Declinó</div><div class="v" style="color:var(--red)">${cnt('Declinó')}</div></div><div class="kpi"><div class="l">No contesta</div><div class="v" style="color:var(--amber)">${cnt('No contesta')}</div></div></div>`;
-  h += tabla('Por reclutador', x => x.reclutador_id, nombreRecl) + tabla('Por medio', x => x.fuente_id, nombreFuente) + tabla('Por estado', x => (tienda(x.idpdv) || {}).estado || 'Sin tienda', k => k) + tabla('Por generado por', x => x.generado_por || 'Sin dato', k => k);
-  $('ig-body').innerHTML = h;
+  const per = IG.per, hasta = IG.dh || addD(HOY, 14), desde = IG.dd || (per === 'all' ? '0000' : addD(HOY, -(+per)));
+  const base = IG.lista.filter(okAlc).filter(x => x.fecha_programada >= desde && x.fecha_programada <= hasta);
+  const cerr = base.filter(x => !PEND.includes(x.estatus)), ing = cerr.filter(x => x.estatus === 'Ingresó'), cnt = e => cerr.filter(x => x.estatus === e).length;
+  const PAL = [C.or, C.bl, C.gr, C.pu, C.te, C.am, C.rd, '#7B8794', '#B0467B'];
+  const pie = (rows, keyf, namef, o = {}) => { const g = new Map(); rows.forEach(x => { const k = keyf(x); g.set(k, (g.get(k) || 0) + 1); }); let it = [...g].map(([k, v]) => ({ n: namef(k), v })).sort((a, b) => b.v - a.v); if (it.length > 8) { const r = it.slice(7).reduce((a, b) => a + b.v, 0); it = it.slice(0, 7).concat([{ n: 'Otros', v: r }]); } return donut(it.map((x, i) => ({ ...x, c: PAL[i % PAL.length] })), { best: 1, sub: o.sub || 'candidatos' }); };
+  const conv = (keyf, namef, min) => { const g = new Map(); cerr.forEach(x => { const k = keyf(x); const o = g.get(k) || { n: 0, i: 0 }; o.n++; if (x.estatus === 'Ingresó') o.i++; g.set(k, o); }); return [...g].filter(([, o]) => o.n >= min).map(([k, o]) => ({ n: namef(k), v: o.i / o.n * 100, s: `${o.i}/${o.n}`, c: o.i / o.n >= 0.75 ? C.gr : o.i / o.n >= 0.6 ? C.am : C.rd })).sort((a, b) => b.v - a.v).slice(0, 10); };
+  let h = barraFiltros('tResumen', IG.lista.map(c => tienda(c.idpdv)).filter(Boolean), ['region', 'gerente', 'supervisor', 'zona_rrhh', 'rrhh', 'cadena']);
+  h += `<div class="tools"><span>Periodo:</span><select onchange="IG.per=this.value;IG.dd=null;IG.dh=null;tResumen()">${[['30', 'Últimos 30 días'], ['60', 'Últimos 60 días'], ['90', 'Últimos 90 días'], ['all', 'Todo lo cargado']].map(([v, t]) => `<option value="${v}" ${IG.per === v && !IG.dd ? 'selected' : ''}>${t}</option>`).join('')}</select><span>o fechas:</span><input type="date" value="${desde === '0000' ? '' : desde}" onchange="IG.dd=this.value;tResumen()"> <input type="date" value="${hasta}" onchange="IG.dh=this.value;tResumen()"><span class="muted">${fmt(cerr.length)} candidatos con resultado</span></div>`;
+  h += `<div class="kpis"><div class="kpi"><div class="l">🧑‍💼 Programados</div><div class="v">${fmt(cerr.length)}</div></div><div class="kpi"><div class="l">🙌 Ingresaron</div><div class="v" style="color:var(--green)">${fmt(ing.length)}</div></div><div class="kpi"><div class="l">📈 Conversión</div><div class="v">${cerr.length ? (ing.length / cerr.length * 100).toFixed(1) + '%' : '—'}</div></div><div class="kpi"><div class="l">🚫 No llegó</div><div class="v" style="color:var(--red)">${cnt('No llegó')}</div></div><div class="kpi"><div class="l">✖️ Declinó</div><div class="v" style="color:var(--red)">${cnt('Declinó')}</div></div><div class="kpi"><div class="l">📵 No contesta</div><div class="v" style="color:var(--amber)">${cnt('No contesta')}</div></div></div>`;
+  const res = ['Ingresó', 'No llegó', 'Declinó', 'No contesta', 'Reagenda'].map((e, i) => ({ n: e, v: cnt(e), c: [C.gr, C.rd, C.am, C.dk, C.gy][i] }));
+  h += `<div class="grid g3"><div class="card"><h3>🎯 Resultado de los candidatos</h3>${donut(res, { sub: 'candidatos' })}</div><div class="card"><h3>🏆 Ingresos por reclutador</h3>${pie(ing, x => x.reclutador_id, nombreRecl, { sub: 'ingresos' })}</div><div class="card"><h3>📣 Ingresos por medio</h3>${pie(ing, x => x.fuente_id, nombreFuente, { sub: 'ingresos' })}</div></div>`;
+  h += `<div class="grid g3"><div class="card"><h3>✖️ Declinados por medio</h3>${pie(cerr.filter(x => x.estatus === 'Declinó'), x => x.fuente_id, nombreFuente, { sub: 'declinados' })}</div><div class="card"><h3>🚫 No llegaron por reclutador</h3>${pie(cerr.filter(x => x.estatus === 'No llegó'), x => x.reclutador_id, nombreRecl, { sub: 'no llegaron' })}</div><div class="card"><h3>📵 No contestan por reclutador</h3>${pie(cerr.filter(x => x.estatus === 'No contesta'), x => x.reclutador_id, nombreRecl, { sub: 'sin respuesta' })}</div></div>`;
+  h += `<div class="grid g2"><div class="card"><h3>🥇 Mejor conversión por medio</h3><p class="note">Ingresos ÷ candidatos con resultado (mín. 10).</p>${hbars(conv(x => x.fuente_id, nombreFuente, 10), C.gr, { pct: 1 })}</div><div class="card"><h3>🥇 Mejor conversión por reclutador</h3><p class="note">Mín. 15 candidatos.</p>${hbars(conv(x => x.reclutador_id, nombreRecl, 15), C.gr, { pct: 1 })}</div></div>`;
+  // tabla única con vista seleccionable
+  const vista = IG.ver || 'cand';
+  h += sect('Detalle', '🧾') + `<div class="tools"><span>Ver por:</span><select onchange="IG.ver=this.value;tResumen()">${VER.map(([k, n]) => `<option value="${k}" ${vista === k ? 'selected' : ''}>${n}</option>`).join('')}</select><span class="muted">Mismo periodo y filtros de arriba (elige un solo día con las fechas para el día completo)</span></div>`;
+  TB = {};
+  if (vista === 'cand') {
+    h += tbl('t-ig', [{ h: 'Fecha', v: c => c.fecha_programada, r: c => fdate(c.fecha_programada), w: 82 }, { h: 'Candidato', t: 1, v: c => c.nombre, w: 210, r: c => `<b>${esc(c.nombre)}</b>` }, { h: 'Estatus', t: 1, v: c => c.estatus, r: c => `<span class="pill ${ESTC[c.estatus] || 'x'}">${esc(c.estatus)}</span>` }, { h: 'IDPDV', v: c => c.idpdv }, { h: 'Tienda', t: 1, v: c => (tienda(c.idpdv) || {}).nombre || '' }, { h: 'Cadena', t: 1, v: c => (tienda(c.idpdv) || {}).cadena }, { h: 'Estado', t: 1, v: c => (tienda(c.idpdv) || {}).estado },
+      { h: 'Reclutador', t: 1, v: c => nombreRecl(c.reclutador_id) }, { h: 'Medio', t: 1, v: c => nombreFuente(c.fuente_id) }, { h: 'Generado por', t: 1, v: c => c.generado_por }, { h: 'Usuario Fieldwy', t: 1, v: c => c.usuario_fieldwy }, { h: 'Supervisor', t: 1, v: c => (tienda(c.idpdv) || {}).supervisor }, { h: 'Gerencia RR.HH.', t: 1, v: c => (tienda(c.idpdv) || {}).zona_rrhh }, { h: 'RR.HH.', t: 1, v: c => (tienda(c.idpdv) || {}).rrhh }],
+      base, { fix: 2, search: 1, csv: 1, png: 1, file: 'posibles_ingresos_detalle', titulo: 'Posibles ingresos · detalle', sort: 0, dir: -1, maxh: '65vh', lim: 600 });
+  } else {
+    const kf = { supervisor: c => (tienda(c.idpdv) || {}).supervisor || 'Sin dato', zona_rrhh: c => (tienda(c.idpdv) || {}).zona_rrhh || 'Sin dato', rrhh: c => (tienda(c.idpdv) || {}).rrhh || 'Sin dato', recl: c => nombreRecl(c.reclutador_id), fuente: c => nombreFuente(c.fuente_id), estado: c => (tienda(c.idpdv) || {}).estado || 'Sin dato', region: c => (tienda(c.idpdv) || {}).region || 'Sin dato' }[vista];
+    const g = new Map(); base.forEach(c => { const k = kf(c); if (!g.has(k)) g.set(k, []); g.get(k).push(c); });
+    const rows = [...g].map(([k, v]) => { const ce = v.filter(x => !PEND.includes(x.estatus)); return { n: k, tot: v.length, pr: v.filter(x => PEND.includes(x.estatus)).length, i: v.filter(x => x.estatus === 'Ingresó').length, nl: v.filter(x => x.estatus === 'No llegó').length, d: v.filter(x => x.estatus === 'Declinó').length, nc: v.filter(x => x.estatus === 'No contesta').length, ce: ce.length }; });
+    h += tbl('t-ig', [{ h: VER.find(x => x[0] === vista)[1], t: 1, v: r => r.n, w: 230, r: r => `<b>${esc(r.n)}</b>` }, { h: 'Candidatos', v: r => r.tot }, { h: '⏳ Pendientes', v: r => r.pr }, { h: '🙌 Ingresos', v: r => r.i, r: r => `<b class="cell-green">${r.i}</b>` }, { h: '📈 Conversión', v: r => pn(r.i, r.ce), r: r => r.ce ? `<span class="pill ${r.i / r.ce >= 0.75 ? 'g' : r.i / r.ce >= 0.6 ? 'a' : 'r'}">${(r.i / r.ce * 100).toFixed(0)}%</span>` : '—' }, { h: '🚫 No llegó', v: r => r.nl }, { h: '✖️ Declinó', v: r => r.d }, { h: '📵 No contesta', v: r => r.nc }],
+      rows, { fix: 1, csv: 1, png: 1, file: 'posibles_ingresos_' + vista, titulo: 'Posibles ingresos por ' + VER.find(x => x[0] === vista)[1], sort: 3, dir: -1, maxh: '65vh' });
+  }
+  const dd = IG.dd && IG.dd === IG.dh ? IG.dd : null;
+  h += sect('Esquema por región, gerente y cadena', '🗺️') + `<p class="note">Igual al que se envía a Operaciones. ${dd ? '' : 'Elige un solo día arriba (mismas fecha en ambos campos) para el esquema del día; mientras tanto suma el periodo.'}</p><div class="tools" data-nocap><button class="btn sm" onclick="capturaDescargar($('esq-wrap'),'Esquema de posibles ingresos',subFiltros(),'esquema_ingresos')">📸 Imagen</button><button class="btn sm" onclick="capturaCopiar($('esq-wrap'),'Esquema de posibles ingresos',subFiltros())">📋 Copiar</button></div><div id="esq-wrap" class="cap-pad">${esquemaHtml(base.filter(c => PEND.includes(c.estatus) || c.estatus === 'Ingresó'), 'POSIBLES INGRESOS')}</div>`;
+  $('ig-body').innerHTML = h; drawAll();
 }
 
+/* >>> 06_movs.js */
+/* ====================================================================== INGRESOS Y BAJAS ====================================================================== */
+const MVX = { ver: 'region', dia: null };
+const DIMV = [['region', 'Región'], ['gerente', 'Gerente / Líder'], ['supervisor', 'Supervisor'], ['zona_rrhh', 'Gerencia RR.HH.'], ['rrhh', 'RR.HH.'], ['cadena', 'Cadena'], ['estado', 'Estado']];
+function hcPromX(r, pred) {
+  const sa = R.meta.semanas_anio, xs = R.T.filter(x => okT(x.t) && pred(x.t)), tot = [];
+  sa.forEach((s, i) => { const fin = addD(s.ini, 6); if (fin < r.desde || s.ini > r.hasta) return; tot.push(xs.reduce((a, x) => a + (x.hc[i] || 0), 0)); });
+  return tot.length ? tot.reduce((a, b) => a + b, 0) / tot.length : 0;
+}
+const enR = (arr, d, h) => arr.filter(x => x.f >= d && x.f <= h && okI(x.idpdv));
+async function vMovs() {
+  await conReporte('Ingresos y bajas', 'saltando', async () => {
+    await cargarMovs();
+    const r = perRango(), dias = r.dias.length, ing = enR(MV.ing, r.desde, r.hasta), baj = enR(MV.baj, r.desde, r.hasta), hc = hcPromX(r, () => true);
+    const pd = addD(r.desde, -dias), ph = addD(r.desde, -1), ingP = enR(MV.ing, pd, ph).length, bajP = enR(MV.baj, pd, ph).length;
+    const semanas = []; if (dias <= 10) { r.dias.forEach(d => semanas.push({ l: d.slice(8) + '/' + d.slice(5, 7), d, h: d })); } else { const W = ventana(); W.forEach(w => { const s = rangoSemanaDe(W.indexOf(w)); if (s.hasta >= r.desde && s.desde <= r.hasta) semanas.push({ l: w.w.slice(3), d: s.desde < r.desde ? r.desde : s.desde, h: s.hasta > r.hasta ? r.hasta : s.hasta }); }); }
+    const si = semanas.map(s => enR(MV.ing, s.d, s.h).length), sb_ = semanas.map(s => enR(MV.baj, s.d, s.h).length);
+    let h = cab('Ingresos y bajas', 'Ingresos (candidatos que ingresaron) y bajas registradas, con rotación, comparativos por semana y por cadena. Sirve de base para los cierres diarios y semanales.', 'saltando') + barraFiltros('vMovs') + barraPeriodo('vMovs');
+    h += `<div class="kpis kp-hero">${kp('Ingresos', fmt(ing.length), `${dl(ing.length, ingP, 0).replace('pts', '')}`.replace('vs ant.', 'vs periodo anterior (' + ingP + ')'), C.gr, null, '🙌')}${kp('Bajas', fmt(baj.length), `${dl(baj.length, bajP, 0).replace('pts', '').replace('vs ant.', 'vs periodo anterior (' + bajP + ')')}`, C.rd, null, '📤')}${kp('Neto', (ing.length - baj.length >= 0 ? '+' : '') + (ing.length - baj.length), 'ingresos − bajas', ing.length - baj.length >= 0 ? C.gr : C.rd, null, '⚖️')}${kp('Rotación del periodo', hc ? f1(baj.length / hc * 100) + '%' : '—', `${baj.length} bajas ÷ ${fmt(hc)} HC promedio`, C.am, null, '🔄')}</div>`;
+    const rotS = semanas.map(s => { const hcS = hcPromX({ desde: s.d, hasta: s.h }, () => true); return hcS ? enR(MV.baj, s.d, s.h).length / hcS * 100 : null; });
+    h += `<div class="grid g2"><div class="card"><h3>📊 Ingresos vs bajas por ${dias <= 10 ? 'día' : 'semana'}</h3>${legend([['Ingresos', C.gr], ['Bajas', C.rd], ['Neto', C.dk]])}${chart(semanas.map(s => s.l), [{ n: 'Ingresos', c: C.gr, v: si }, { n: 'Bajas', c: C.rd, v: sb_ }], { bars: 1, vals: 1, h: 250, lines: [{ n: 'Neto', c: C.dk, v: si.map((v, i) => v - sb_[i]) }] })}</div>
+      <div class="card"><h3>🔄 Rotación ${dias <= 10 ? 'diaria' : 'semanal'}</h3><p class="note">Bajas ÷ promotores con check (HC promedio).</p>${chart(semanas.map(s => s.l), [{ n: 'Rotación %', c: C.am, v: rotS }], { pct: 1, h: 250, vals: 1 })}</div></div>`;
+    const cads = [...new Set(R.T.filter(x => okT(x.t)).map(x => x.t.cadena).filter(Boolean))];
+    const cr = cads.map(c => { const i = ing.filter(x => (tienda(x.idpdv) || {}).cadena === c).length, b = baj.filter(x => (tienda(x.idpdv) || {}).cadena === c).length, hcC = hcPromX(r, t => t.cadena === c); return { c, i, b, rot: hcC ? b / hcC * 100 : null }; }).sort((a, b) => b.i + b.b - a.i - a.b);
+    const mot = {}; baj.forEach(x => mot[x.mot] = (mot[x.mot] || 0) + 1); const PAL = [C.or, C.bl, C.rd, C.pu, C.te, C.am, C.gr, C.gy];
+    const mi = Object.entries(mot).sort((a, b) => b[1] - a[1]); const top = mi.slice(0, 6).map(([n, v], i) => ({ n, v, c: PAL[i] })); const rest = mi.slice(6).reduce((a, b) => a + b[1], 0); if (rest) top.push({ n: 'Otros', v: rest, c: C.gy });
+    h += `<div class="grid g2"><div class="card"><h3>🏬 Por cadena</h3>${cr.map(q => `<div class="cadena-row">${logoCad(q.c)}<div class="dual"><div class="d-i" style="width:${Math.max(3, q.i / Math.max(1, ...cr.map(z => z.i + z.b)) * 100)}%"><span>${q.i}</span></div><div class="d-b" style="width:${Math.max(3, q.b / Math.max(1, ...cr.map(z => z.i + z.b)) * 100)}%"><span>${q.b}</span></div></div><span class="muted" style="min-width:92px;text-align:right">rot. ${f1(q.rot)}%</span></div>`).join('')}<p class="tblnote">🟩 ingresos · 🟥 bajas</p></div>
+      <div class="card"><h3>📤 Motivos de baja</h3>${donut(top, { sub: 'bajas', best: 1 })}</div></div>`;
+    // tabla por vista de estructura
+    h += sect('Ingresos y bajas por estructura', '🧾') + `<div class="tools" data-nocap><span>Ver por:</span><select onchange="MVX.ver=this.value;vMovs()">${DIMV.map(([k, n]) => `<option value="${k}" ${MVX.ver === k ? 'selected' : ''}>${n}</option>`).join('')}</select></div>`;
+    const keys = [...new Set(R.T.filter(x => okT(x.t)).map(x => x.t[MVX.ver]).filter(Boolean))];
+    const rows = keys.map(k => { const i = ing.filter(x => (tienda(x.idpdv) || {})[MVX.ver] === k).length, b = baj.filter(x => (tienda(x.idpdv) || {})[MVX.ver] === k).length, hcK = hcPromX(r, t => t[MVX.ver] === k); return { n: k, i, b, net: i - b, hc: hcK, rot: hcK ? b / hcK * 100 : null }; }).filter(q => q.i || q.b);
+    TB = {};
+    h += tbl('t-mv', [{ h: DIMV.find(x => x[0] === MVX.ver)[1], t: 1, v: q => q.n, w: 240, r: q => `<b>${esc(q.n)}</b>` }, { h: '🙌 Ingresos', v: q => q.i, r: q => `<b class="cell-green">${q.i}</b>` }, { h: '📤 Bajas', v: q => q.b, r: q => `<b class="cell-red">${q.b}</b>` }, { h: '⚖️ Neto', v: q => q.net, r: q => `<span class="${q.net < 0 ? 'cell-red' : 'cell-green'}">${q.net > 0 ? '+' : ''}${q.net}</span>` }, { h: 'HC promedio', v: q => q.hc, r: q => fmt(q.hc) }, { h: '🔄 Rotación', v: q => q.rot, r: q => q.rot == null ? '—' : `<span class="bar-pct ${q.rot > 40 ? 'ko' : q.rot > 25 ? 'wa' : 'ok'}">${f1(q.rot)}%</span>` }],
+      rows, { fix: 1, csv: 1, png: 1, file: 'ingresos_bajas_estructura', titulo: 'Ingresos y bajas por ' + DIMV.find(x => x[0] === MVX.ver)[1], sort: 1, dir: -1, maxh: '60vh' });
+    // cierres compartibles
+    const dsel = MVX.dia || (r.hasta); const dI = enR(MV.ing, dsel, dsel), dB = enR(MV.baj, dsel, dsel);
+    const sI = semanaCierre(r.hasta);
+    h += sect('Imágenes para compartir', '📸') + `<div class="grid g2"><div class="card"><div class="card-h"><h3>☀️ Cierre diario</h3><input type="date" data-nocap min="${limites().min}" max="${HOY}" value="${dsel}" onchange="MVX.dia=this.value;vMovs()"></div><div id="cierre-dia" class="cap-pad">${cierreHtml('Ingresos y bajas · ' + fdia(dsel), dI, dB)}</div><div class="tools" data-nocap><button class="btn sm" onclick="capturaDescargar($('cierre-dia'),'Cierre diario · ${fdia(dsel)}',subFiltros(),'cierre_diario')">📸 Imagen</button><button class="btn sm" onclick="capturaCopiar($('cierre-dia'),'Cierre diario · ${fdia(dsel)}',subFiltros())">📋 Copiar</button></div></div>
+      <div class="card"><h3>📅 Cierre semanal</h3><div id="cierre-sem" class="cap-pad">${cierreHtml('Semana ' + sI.w + ' · ' + fdate(sI.desde) + ' al ' + fdate(sI.hasta), enR(MV.ing, sI.desde, sI.hasta), enR(MV.baj, sI.desde, sI.hasta))}</div><div class="tools" data-nocap><button class="btn sm" onclick="capturaDescargar($('cierre-sem'),'Cierre semanal ${sI.w}',subFiltros(),'cierre_semanal')">📸 Imagen</button><button class="btn sm" onclick="capturaCopiar($('cierre-sem'),'Cierre semanal ${sI.w}',subFiltros())">📋 Copiar</button></div></div></div>`;
+    $('content').innerHTML = h; drawAll();
+  });
+}
+function semanaCierre(d) { const W = ventana(); let i = W.findIndex(w => addD(w.ini, 6) >= d && w.ini <= d); if (i < 0) i = W.length - 1; const s = rangoSemanaDe(i); return { w: W[i].w, ...s }; }
+function cierreHtml(titulo, ing, baj) {
+  const reg = new Map(); [...ing.map(x => ['i', x]), ...baj.map(x => ['b', x])].forEach(([k, x]) => { const rg = (tienda(x.idpdv) || {}).region || 'Sin región'; const o = reg.get(rg) || { i: 0, b: 0 }; o[k]++; reg.set(rg, o); });
+  return `<div class="cierre"><div class="cierre-t">${esc(titulo)}</div><div class="cierre-k"><div><b class="cell-green">${ing.length}</b><span>🙌 Ingresos</span></div><div><b class="cell-red">${baj.length}</b><span>📤 Bajas</span></div><div><b>${ing.length - baj.length >= 0 ? '+' : ''}${ing.length - baj.length}</b><span>⚖️ Neto</span></div></div>
+    <table><thead><tr><th>Región</th><th>Ingresos</th><th>Bajas</th><th>Neto</th></tr></thead><tbody>${[...reg].sort((a, b) => b[1].i + b[1].b - a[1].i - a[1].b).map(([k, o]) => `<tr><td>${esc(k)}</td><td>${o.i}</td><td>${o.b}</td><td>${o.i - o.b > 0 ? '+' : ''}${o.i - o.b}</td></tr>`).join('') || '<tr><td colspan="4" class="empty-in">Sin movimientos</td></tr>'}</tbody></table></div>`;
+}
+
+/* >>> 08_demo_reportes.js */
+/* ----- datos de ejemplo para reportes, ingresos y movimientos (todo ficticio) ----- */
+(function () {
+  const rnd = (() => { let s = 11; return () => (s = (s * 16807) % 2147483647) / 2147483647; })();
+  const ri = (a, b) => a + Math.floor(rnd() * (b - a + 1));
+  let cache = null;
+  const monday = d => { const x = new Date(d + 'T12:00:00'); const k = (x.getDay() + 6) % 7; x.setDate(x.getDate() - k); return x.getFullYear() + '-' + pad(x.getMonth() + 1) + '-' + pad(x.getDate()); };
+  const NW = 13;
+  function build() {
+    const tiendas = Object.values(S.cat.tiendas); const m0 = monday(HOY);
+    const ventana = Array.from({ length: NW }, (_, k) => ({ w: '26-S' + (28 + k), ini: addD(m0, -7 * (NW - 1 - k)) }));
+    const sa = Array.from({ length: 40 }, (_, k) => ({ w: '26-S' + pad(k + 1), ini: addD(m0, -7 * (39 - k)) }));
+    const f0 = addD(HOY, -93), nd = 94, nCd = diffD(HOY, ventana[0].ini) + 1;
+    const meses = []; for (let i = 3; i >= 0; i--) { const d = new Date(HOY + 'T12:00:00'); d.setDate(1); d.setMonth(d.getMonth() - i); meses.push(d.getFullYear() + '-' + pad(d.getMonth() + 1)); }
+    const tien = tiendas.map(t => {
+      const ps = t.posiciones, cuota = ps * 6;
+      const sem = ventana.map(w => [0, 0, cuota, ps * 9, 0, 0, 0, 0, w.ini]);
+      const chk = ventana.map(() => { const d = ri(4, 13), c = Math.round(d * (0.8 + rnd() * 0.2)), pr = ri(0, 3); const e = Array.from({ length: 9 }, () => ri(0, 2)); e[0] = c; return [ri(1, 3), d, c, pr, 0, ...e]; });
+      let cd = ''; for (let q = 0; q < nCd; q++) cd += rnd() < 0.84 ? String(ri(1, ps + 1)) : '0';
+      if (t.idpdv % 7 === 0) cd = cd.slice(0, nCd - 5) + '00000'; if (t.idpdv % 5 === 0) cd = cd.slice(0, nCd - 4) + '0000'; if (t.idpdv % 6 === 0) cd = cd.slice(0, nCd - 3) + '000';
+      let dias = ''; for (let i = 0; i < nd; i++) dias += rnd() < 0.8 ? 'C' : '0'; dias = dias.slice(0, nd - nCd % 7) ;
+      const tail = cd.match(/0+$/); const ra0 = tail ? tail[0].length : 0;
+      const pen = meses.map((m, k) => { const act = k === meses.length - 1; const mx = act ? ra0 : ri(0, 6); const e = mx >= 5 ? 2 : mx >= 3 ? 1 : 0;
+        return { m, e, pa: mx >= 3 ? `${ri(1, 20)} al ${ri(21, 28)} ${MESN[+m.slice(5) - 1]}.` : null, dr: mx >= 3 ? mx : 0, mx, pm: mx >= 2 ? `${ri(1, 10)} al ${ri(11, 20)} ${MESN[+m.slice(5) - 1]}.` : null, ds: ri(mx, mx + 5), ul: addD(HOY, -ra0 - 1), uf: act ? addD(HOY, -ra0 - 1) : null, ue: act ? (rnd() < 0.85 ? 'Cumple Original' : 'Abierto') : null, ra: act ? ra0 : 0, hoy: act ? (rnd() < 0.25 ? 'A' : '0') : null, rs: mx >= 2 ? [[mx, addD(HOY, -mx), addD(HOY, -1)]] : [], act }; });
+      return { idpdv: t.idpdv, semanas: sem, chk: { s: chk, cd }, dias, hc_sem: sa.map(() => ri(1, 3)), pen };
+    });
+    const nom = ['Ana Solís', 'Luis Ortega', 'María Cruz', 'José Reyes', 'Daniela Ruiz', 'Carlos Mora', 'Paola Estrada', 'Jorge Lara', 'Valeria Núñez', 'Diego Gil', 'Karla Vega', 'Miguel Soto', 'Fátima Luna', 'Ricardo Salas', 'Brenda Morales'];
+    const hc = Array.from({ length: 70 }, (_, i) => { const t = tiendas[i % tiendas.length]; const dsc = i % 9 === 0 ? ri(2, 12) : i % 5 === 0 ? 1 : 0; const aus = i % 11 === 0; const alta = i % 4 === 0 ? ri(1, 27) : ri(30, 900); return { usuario: 'DEMO' + (100 + i), nombre: nom[i % 15] + ' ' + (i + 1), fecha_alta: addD(HOY, -alta), baja_final: i % 6 === 0 ? addD(HOY, -ri(200, 600)) : null, estatus_modelo: 'Activo', tipo_ingreso: i % 6 === 0 ? 'Reingreso' : 'Nuevo', empresa: ['Benber SS', 'Revelor', 'Doma Legal'][i % 3], ultimo_check: addD(HOY, -dsc), ultimo_idpdv: t.idpdv, ausencia_dias: aus ? 5 : null, ausencia_regreso: aus ? addD(HOY, 2) : null, ausencia_motivo: aus ? 'Vacaciones' : null, rol: i % 8 === 0 ? 'Cubre descansos' : 'Promotor' }; });
+    const uc = hc.map(h => ({ usuario: h.usuario, fecha: h.ultimo_check, idpdv: h.ultimo_idpdv, rol: h.rol, hora_in: '09:' + pad(ri(0, 55)) + ':00', hora_out: '18:' + pad(ri(0, 50)) + ':00', estatus_check: rnd() < 0.8 ? 'Cumple' : 'Error Comida', validacion: 'Cumple' }));
+    return { meta: { ventana, cd_desde: ventana[0].ini, ultima_fecha: HOY, dias_desde: f0, dias_n: nd, hoy: HOY, estatus_check: [], semanas_anio: sa, generado: 'datos de ejemplo' }, tiendas: tien, hc, uc, bajas: [] };
+  }
+  Demo.reporte = async function () { if (!cache) cache = build(); return cache; };
+  Demo.movs = async function () {
+    const t = Object.values(S.cat.tiendas), ing = [], baj = [];
+    for (let d = -100; d <= 0; d++) { const f = addD(HOY, d); for (let k = 0; k < ri(6, 14); k++) { const x = t[ri(0, t.length - 1)]; ing.push({ f, idpdv: x.idpdv, rec: ri(1, 8), fu: ri(1, 9) }); } for (let k = 0; k < ri(6, 15); k++) { const x = t[ri(0, t.length - 1)]; baj.push({ f, idpdv: x.idpdv, mot: ['Motivos personales', 'Abandono de trabajo', 'Renuncia voluntaria', 'Mejor oferta laboral (telefonía)', 'Malas prácticas'][ri(0, 4)], u: 'D' + k }); } }
+    return { ing, baj };
+  };
+  Demo.checks = async function (desde, hasta) {
+    const out = []; const tiendas = Object.values(S.cat.tiendas).slice(0, 30); let k = 0;
+    for (let d = 0; d < 7; d++) { const f = addD(desde, d); if (f > HOY || f > hasta) continue; tiendas.forEach(t => { for (let n = 0; n < 2; n++) { k++; const r = rnd(); const est = r < 0.78 ? 'Cumple' : r < 0.84 ? 'Error Comida' : r < 0.9 ? 'Check Out Fuera Ventana' : r < 0.94 ? 'Tiempo Incompleto' : r < 0.97 ? 'Check In Fuera Rango' : 'Equipo Duplicado'; const v = est === 'Cumple' ? 'Cumple' : (rnd() < 0.5 && !/Rango|Duplicado/.test(est) ? 'Cumple Productividad' : 'No Cumple'); const reg = v === 'Cumple Productividad' ? ri(1, 4) : (rnd() < 0.4 ? ri(0, 3) : 0);
+      out.push({ id: 'k' + k + f, semana: '', fecha: f, usuario: 'DEMO' + (100 + (k % 60)), nombre: ['Ana Solís', 'Luis Ortega', 'María Cruz', 'José Reyes'][k % 4] + ' ' + (k % 60), idpdv: t.idpdv, rol: 'Promotor', hora_in: '09:' + pad(ri(0, 59)) + ':10', hora_com_in: '13:' + pad(ri(0, 30)) + ':00', hora_com_out: '14:' + pad(ri(0, 30)) + ':00', hora_out: '18:' + pad(ri(0, 59)) + ':00', tiempo_ub: est === 'Tiempo Incompleto' ? ri(300, 470) : ri(480, 560), tiempo_com: ri(10, 60), rango_in: est === 'Check In Fuera Rango' ? 'Fuera de Rango' : 'Dentro de Rango', rango_out: 'Dentro de Rango', equipo_dup: est === 'Equipo Duplicado', estatus_check: est, validacion: v, estatus_final: v, registros: reg, temm: Math.min(reg, 1), porta: reg > 1 ? 1 : 0, pospago: 0, prepago: Math.max(0, reg - 1), check_tel: 0 }); } }); }
+    return out;
+  };
+})();
+
+/* >>> 99_init.js */
 /* ====================================================================== arranque ====================================================================== */
 async function entrar() {
   try {
@@ -841,3 +1074,4 @@ function mostrarLogin(msg) { $('app').hidden = true; $('login').hidden = false; 
   if (DEMO) { await entrar(); return; }
   try { if (await API.init()) await entrar(); else mostrarLogin(); } catch (e) { mostrarLogin('No se pudo conectar: ' + e.message); }
 })();
+
