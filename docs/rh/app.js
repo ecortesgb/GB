@@ -129,46 +129,53 @@ function regresion(vals) { // recta de tendencia (mínimos cuadrados) sobre los 
   const n = p.length, sx = p.reduce((a, q) => a + q[0], 0), sy = p.reduce((a, q) => a + q[1], 0), sxy = p.reduce((a, q) => a + q[0] * q[1], 0), sxx = p.reduce((a, q) => a + q[0] * q[0], 0), d = n * sxx - sx * sx;
   if (!d) return null; const m = (n * sxy - sx * sy) / d, b = (sy - m * sx) / n; return i => b + m * i;
 }
-/* chart(labels, series, {bars, stack, pct, max, h, w, ticks, vals, lines (misma escala), lines2 (escala derecha), y2:{max,pct}}) */
+/* chart(labels, series, {bars, stack, pct, max, h, w, ticks, vals, lines (misma escala), lines2 (escala derecha), band (la línea va en una franja arriba, sin tapar las barras), y2:{max,pct}}) */
 function chart(labels, series, o = {}) {
-  const l2 = o.lines2 || [], W = o.w || 760, H = o.h || 260, L = 50, R = l2.length ? 56 : 16, T = 24, B = 30, pw = W - L - R, ph = H - T - B, n = labels.length;
+  const l2 = o.lines2 || [], band = !!(o.band && l2.length), W = o.w || 600, H = o.h || 290, L = 46, R = l2.length ? 54 : 30, T = band ? 36 : 26, B = 28, pw = W - L - R, ph = H - T - B, n = labels.length;
+  const phB = band ? ph * 0.64 : ph, phL = band ? ph * 0.27 : ph;
   const all = [...series.flatMap(s => s.v), ...(o.lines || []).flatMap(s => s.v)].filter(x => x != null);
   let mx = o.max != null ? o.max : niceMax(Math.max(1e-9, ...all));
   if (o.stack) { const tot = labels.map((_, i) => series.reduce((a, s) => a + (s.v[i] || 0), 0)); mx = o.max != null ? o.max : niceMax(Math.max(1e-9, ...tot, ...(o.lines || []).flatMap(s => s.v).filter(x => x != null))); }
-  const y = v => T + ph - (v / mx) * ph, bw = pw / Math.max(1, n), xc = i => L + i * bw + bw / 2, xs = i => L + (n <= 1 ? pw / 2 : i * pw / (n - 1)), X = i => o.bars ? xc(i) : xs(i);
-  const v2 = l2.flatMap(s => s.v).filter(x => x != null), mx2 = o.y2 && o.y2.max != null ? o.y2.max : niceMax(Math.max(1e-9, ...v2) * 1.15), y2 = v => T + ph - (v / mx2) * ph;
-  const lab = v => o.pct ? Math.round(v) + '%' : fmt(v), lab2 = v => o.y2 && o.y2.pct ? v.toFixed(2) + '%' : fmt1(v);
-  let g = '';
-  for (let k = 0; k <= 4; k++) { const v = mx * k / 4; g += `<line class="g" x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}"/><text x="${L - 7}" y="${y(v) + 4}" text-anchor="end">${lab(v)}</text>`; if (l2.length) g += `<text x="${W - R + 7}" y="${y(v) + 4}" text-anchor="start" style="fill:#B26A00">${o.y2 && o.y2.pct ? (mx2 * k / 4).toFixed(1) + '%' : fmt1(mx2 * k / 4)}</text>`; }
+  const y = v => T + ph - (v / mx) * phB, bw = pw / Math.max(1, n), xc = i => L + i * bw + bw / 2, xs = i => L + (n <= 1 ? pw / 2 : i * pw / (n - 1)), X = i => o.bars ? xc(i) : xs(i);
+  const v2 = l2.flatMap(s => s.v).filter(x => x != null), fT = l2.map(s => s.trend ? regresion(s.v) : null);
+  const vt = [...v2]; l2.forEach((s, k) => { if (fT[k]) { vt.push(fT[k](0), fT[k](n - 1)); } });
+  let lo2 = 0, hi2 = o.y2 && o.y2.max != null ? o.y2.max : niceMax(Math.max(1e-9, ...v2) * 1.15);
+  if (band) { const a = Math.min(...vt), b = Math.max(...vt), r = (b - a) || Math.max(0.5, Math.abs(b) * 0.2); lo2 = Math.max(0, a - r * 0.5); hi2 = b + r * 0.5; }
+  const y2 = band ? v => T + phL - (v - lo2) / (hi2 - lo2) * phL : v => T + ph - (v / hi2) * ph;
+  const lab = v => o.pct ? (mx < 10 ? v.toFixed(1) : Math.round(v)) + '%' : fmt(v), lab2 = v => o.y2 && o.y2.pct ? v.toFixed(2) + '%' : fmt1(v);
+  let g = band ? `<rect x="${L}" y="${T - 12}" width="${pw}" height="${phL + 24}" rx="9" fill="#FFF3E6"/>` : '';
+  for (let k = 0; k <= 4; k++) { const v = mx * k / 4; g += `<line class="g" x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}"/><text x="${L - 7}" y="${y(v) + 4}" text-anchor="end">${lab(v)}</text>`; }
+  if (l2.length) (band ? [0, 0.5, 1] : [0, 0.25, 0.5, 0.75, 1]).forEach(f => { const v = lo2 + (hi2 - lo2) * f; g += `<text x="${W - R + 7}" y="${y2(v) + 4}" text-anchor="start" style="fill:#9A4A00;font-weight:700">${o.y2 && o.y2.pct ? v.toFixed(band ? 2 : 1) + '%' : fmt1(v)}</text>`; });
   const every = Math.ceil(n / (o.ticks || 14));
-  labels.forEach((l, i) => { if (i % every === 0) g += `<text x="${X(i)}" y="${H - 9}" text-anchor="middle">${esc(l)}</text>`; });
-  const val = (x, yy, t, c) => `<text x="${x}" y="${yy}" text-anchor="middle" class="vl" style="fill:${c}">${t}</text>`;
+  labels.forEach((l, i) => { if (i % every === 0) g += `<text x="${X(i)}" y="${H - 8}" text-anchor="middle" style="font-weight:700;fill:#3a3f47">${esc(l)}</text>`; });
+  const vi = (x, yy, t) => `<text x="${x}" y="${yy}" text-anchor="middle" class="vi">${t}</text>`, vo = (x, yy, t, c) => `<text x="${x}" y="${yy}" text-anchor="middle" class="vl" style="fill:${c}">${t}</text>`;
+  const pill = (x, yy, t, c) => { const w = t.length * 7.6 + 14; return `<rect x="${x - w / 2}" y="${yy - 25}" width="${w}" height="20" rx="7" fill="#fff" stroke="${c}" stroke-width="1.8"/><text x="${x}" y="${yy - 10.5}" text-anchor="middle" class="vp" style="fill:${c}">${t}</text>`; };
   if (o.bars) {
-    const ns = o.stack ? 1 : series.length, w = Math.max(3, bw * 0.74 / ns);
+    const ns = o.stack ? 1 : series.length, w = Math.max(3, bw * 0.8 / ns);
     labels.forEach((_, i) => {
       let acc = 0;
       series.forEach((s, j) => {
-        const v = s.v[i] || 0, x = o.stack ? L + i * bw + bw * 0.13 : L + i * bw + bw * 0.13 + j * w, h = v / mx * ph, yy = o.stack ? T + ph - (acc + v) / mx * ph : T + ph - h, ww = o.stack ? bw * 0.74 : w;
+        const v = s.v[i] || 0, x = o.stack ? L + i * bw + bw * 0.1 : L + i * bw + bw * 0.1 + j * w, h = v / mx * phB, yy = o.stack ? T + ph - (acc + v) / mx * phB : T + ph - h, ww = o.stack ? bw * 0.8 : w;
         g += `<rect x="${x}" y="${yy}" width="${ww}" height="${Math.max(0, h)}" fill="${s.c}" rx="3"><title>${esc(labels[i])} · ${esc(s.n)}: ${o.pct ? v.toFixed(2) + '%' : fmt(v)}</title></rect>`;
-        if (o.vals && v > 0) { if (h > 17 && ww > 18) g += val(x + ww / 2, yy + h / 2 + 4, fmt(v), '#fff'); else g += val(x + ww / 2, yy - 4, fmt(v), s.c === C.gr ? C.gr : s.c); }
+        if (o.vals && v > 0) { if (h >= 17 && ww >= 22) g += vi(x + ww / 2, yy + h / 2 + 5, fmt(v)); else if (!o.stack) g += vo(x + ww / 2, yy - 5, fmt(v), s.tc || s.c); }
         acc += v;
       });
     });
   } else series.forEach(s => {
     let d = ''; s.v.forEach((v, i) => { if (v != null) d += (d ? 'L' : 'M') + xs(i) + ',' + y(v); });
-    g += `<path d="${d}" fill="none" stroke="${s.c}" stroke-width="2.8" stroke-linejoin="round"/>`;
-    s.v.forEach((v, i) => { if (v != null) g += `<circle cx="${xs(i)}" cy="${y(v)}" r="3.4" fill="${s.c}"><title>${esc(labels[i])} · ${esc(s.n)}: ${o.pct ? v.toFixed(2) + '%' : fmt(v)}</title></circle>${o.vals ? val(xs(i), y(v) - 9, o.pct ? v.toFixed(2) + '%' : fmt(v), s.c) : ''}`; });
+    g += `<path d="${d}" fill="none" stroke="${s.c}" stroke-width="3" stroke-linejoin="round"/>`;
+    s.v.forEach((v, i) => { if (v != null) g += `<circle cx="${xs(i)}" cy="${y(v)}" r="4" fill="${s.c}"><title>${esc(labels[i])} · ${esc(s.n)}: ${o.pct ? v.toFixed(2) + '%' : fmt(v)}</title></circle>${o.vals ? pill(xs(i), y(v) - 2, o.pct ? v.toFixed(2) + '%' : fmt(v), s.tc || s.c) : ''}`; });
   });
   (o.lines || []).forEach(s => {
     let d = ''; s.v.forEach((v, i) => { if (v != null) d += (d ? 'L' : 'M') + X(i) + ',' + y(v); });
     g += `<path d="${d}" fill="none" stroke="${s.c}" stroke-width="2.8" stroke-dasharray="${s.dash || ''}"/>`;
     s.v.forEach((v, i) => { if (v != null) g += `<circle cx="${X(i)}" cy="${y(v)}" r="3.6" fill="#fff" stroke="${s.c}" stroke-width="2"><title>${esc(labels[i])} · ${esc(s.n)}: ${o.pct2 ? v.toFixed(2) + '%' : fmt(v)}</title></circle>`; });
   });
-  l2.forEach(s => {
+  l2.forEach((s, k) => {
+    const f = fT[k]; if (f) g += `<line x1="${X(0)}" y1="${y2(f(0))}" x2="${X(n - 1)}" y2="${y2(f(n - 1))}" stroke="${s.tc || '#3B4048'}" stroke-width="2.4" stroke-dasharray="7 5"><title>Tendencia de ${esc(s.n)}</title></line>`;
     let d = ''; s.v.forEach((v, i) => { if (v != null) d += (d ? 'L' : 'M') + X(i) + ',' + y2(v); });
-    g += `<path d="${d}" fill="none" stroke="${s.c}" stroke-width="3"/>`;
-    s.v.forEach((v, i) => { if (v != null) g += `<circle cx="${X(i)}" cy="${y2(v)}" r="4" fill="#fff" stroke="${s.c}" stroke-width="2.4"><title>${esc(labels[i])} · ${esc(s.n)}: ${lab2(v)}</title></circle>${val(X(i), y2(v) - 11, lab2(v), s.c)}`; });
-    const f = s.trend ? regresion(s.v) : null; if (f) g += `<line x1="${X(0)}" y1="${y2(f(0))}" x2="${X(n - 1)}" y2="${y2(f(n - 1))}" stroke="${s.c}" stroke-width="2.2" stroke-dasharray="7 5" opacity=".75"><title>Tendencia de ${esc(s.n)}</title></line>`;
+    g += `<path d="${d}" fill="none" stroke="${s.c}" stroke-width="3.2" stroke-linejoin="round"/>`;
+    s.v.forEach((v, i) => { if (v != null) g += `<circle cx="${X(i)}" cy="${y2(v)}" r="4.6" fill="#fff" stroke="${s.c}" stroke-width="2.6"><title>${esc(labels[i])} · ${esc(s.n)}: ${lab2(v)}</title></circle>${pill(X(i), y2(v) - 5, lab2(v), s.c)}`; });
   });
   return `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img">${g}</svg>`;
 }
@@ -210,7 +217,7 @@ function tdraw(id) {
   let h = '<thead>';
   if (T.groups) { let k = 0; h += '<tr class="g1">' + T.groups.map(g => { const cells = T.cols.slice(k, k + g.span); const fixed = k < T.fix; const lf = fixed ? left[k] : 0; const w = fixed ? cells.reduce((a, c, j) => a + (k + j < T.fix ? (c.w || 110) : 0), 0) : 0; const r = `<th colspan="${g.span}" class="gh ${g.cls || ''}${fixed ? ' fx' : ''}" ${fixed ? `style="left:${lf}px;min-width:${w}px"` : ''}>${g.t}</th>`; k += g.span; return r; }).join('') + '</tr>'; }
   h += `<tr class="${T.groups ? 'g2' : ''}">` + T.cols.map(th).join('') + '</tr></thead><tbody>';
-  h += shown.map(r => '<tr>' + T.cols.map((c, i) => { const v = c.v(r), disp = c.r ? c.r(r) : (v == null ? '—' : (typeof v === 'number' ? (c.h === 'IDPDV' ? v : fmt(v)) : esc(v))); const cl = (typeof c.c === 'function' ? c.c(r) : c.c) || ''; return `<td class="${c.t ? 't ' : ''}${i < T.fix ? 'fx ' : ''}${cl}" ${i < T.fix ? `style="left:${left[i]}px;min-width:${c.w || 110}px;max-width:${c.w || 110}px"` : ''}>${i < T.fix ? `<div class="cut" title="${esc(String(v == null ? '' : v))}">${disp}</div>` : disp}</td>`; }).join('') + '</tr>').join('');
+  h += shown.map(r => '<tr>' + T.cols.map((c, i) => { const v = c.v(r), disp = c.r ? c.r(r) : (v == null ? '—' : (typeof v === 'number' ? (c.h === 'IDPDV' ? v : fmt(v)) : esc(v))); const cl = (typeof c.c === 'function' ? c.c(r) : c.c) || ''; return `<td class="${c.t ? 't ' : ''}${i < T.fix ? 'fx ' : ''}${cl}" ${i < T.fix ? `style="left:${left[i]}px;min-width:${c.w || 110}px;max-width:${c.w || 110}px"` : ''}>${i < T.fix ? `<div class="cut" style="max-width:${(c.w || 110) - 24}px" title="${esc(String(v == null ? '' : v))}">${disp}</div>` : disp}</td>`; }).join('') + '</tr>').join('');
   el.innerHTML = h + '</tbody>';
   const n = $(id + '-n'); if (n) n.textContent = rows.length > T.lim ? `Mostrando ${T.lim} de ${fmt(rows.length)}` : `${fmt(rows.length)} filas`;
 }
@@ -226,18 +233,31 @@ const drawAll = () => Object.keys(TB).forEach(tdraw);
 /* ---------- capturas (PNG) para compartir en los grupos ---------- */
 async function pngDe(el, titulo, sub) {
   if (!window.html2canvas) throw new Error('El generador de imágenes no cargó (revisa tu conexión).');
-  const box = document.createElement('div'); box.className = 'cap-box';
+  const box = document.createElement('div'); box.className = 'cap-box'; box.style.width = 'max-content'; box.style.minWidth = '760px';
   box.innerHTML = `<div class="cap-head"><img src="${img('logo_gb')}" alt=""><div><b>${esc(titulo)}</b><small>${esc(sub || '')}</small></div><span>Grupo Benber · RH · ${fdate(HOY)}</span></div>`;
   const clon = el.cloneNode(true);
   clon.querySelectorAll('.tw').forEach(t => { t.style.maxHeight = 'none'; t.style.overflow = 'visible'; t.style.width = 'max-content'; t.style.maxWidth = 'none'; });
-  clon.querySelectorAll('[data-nocap]').forEach(x => x.remove()); clon.querySelectorAll('details').forEach(d => d.setAttribute('open', ''));
+  clon.querySelectorAll('[data-nocap]').forEach(x => x.remove()); clon.querySelectorAll('details').forEach(d => d.setAttribute('open', '')); clon.querySelectorAll('.xlw').forEach(t => { t.style.overflow = 'visible'; t.style.maxHeight = 'none'; });
   clon.querySelectorAll('.fx').forEach(x => { x.style.position = 'static'; x.style.left = 'auto'; }); clon.querySelectorAll('.cut').forEach(x => { x.style.overflow = 'visible'; x.style.textOverflow = 'clip'; });
   clon.querySelectorAll('thead th').forEach(x => { x.style.position = 'static'; });
   box.appendChild(clon); document.body.appendChild(box);
-  try { await (document.fonts && document.fonts.ready); const w = Math.max(box.scrollWidth, 760); return await html2canvas(box, { scale: 2, backgroundColor: '#ffffff', useCORS: true, width: w, windowWidth: w + 40, scrollX: 0, scrollY: 0 }); } finally { box.remove(); }
+  try { await (document.fonts && document.fonts.ready); await new Promise(r => setTimeout(r, 60)); const w = Math.ceil(Math.max(box.getBoundingClientRect().width, box.scrollWidth, 760)), hh = Math.ceil(Math.max(box.getBoundingClientRect().height, box.scrollHeight)), sc = Math.min(2, 16000 / Math.max(w, hh)); return await html2canvas(box, { scale: sc, backgroundColor: '#ffffff', useCORS: true, width: w, height: hh, windowWidth: w + 80, windowHeight: hh + 80, scrollX: 0, scrollY: 0 }); } finally { box.remove(); }
 }
 async function capturaDescargar(el, titulo, sub, nombre) { toast('Generando imagen…'); try { const c = await pngDe(el, titulo, sub); const a = document.createElement('a'); a.href = c.toDataURL('image/png'); a.download = (nombre || titulo).replace(/[^\w\-]+/g, '_') + '_' + HOY + '.png'; a.click(); toast('Imagen descargada'); } catch (e) { toast(e.message || e); } }
-async function capturaCopiar(el, titulo, sub) { toast('Generando imagen…'); try { const c = await pngDe(el, titulo, sub); c.toBlob(async b => { try { await navigator.clipboard.write([new ClipboardItem({ 'image/png': b })]); toast('Imagen copiada: pégala en WhatsApp'); } catch (e) { toast('Tu navegador no permite copiar imágenes; usa Descargar'); } }); } catch (e) { toast(e.message || e); } }
+async function capturaCopiar(el, titulo, sub) {
+  // el portapapeles exige iniciar la escritura dentro del clic: se entrega una promesa del PNG y el navegador la espera
+  toast('Generando imagen…');
+  const blobP = pngDe(el, titulo, sub).then(c => new Promise((res, rej) => c.toBlob(b => b ? res(b) : rej(new Error('No se pudo generar la imagen')), 'image/png')));
+  try {
+    if (!navigator.clipboard || !window.ClipboardItem) throw new Error('sin portapapeles');
+    await navigator.clipboard.write([new ClipboardItem({ 'image/png': blobP })]); toast('Imagen copiada: pégala en WhatsApp o Excel');
+  } catch (e) {
+    try { const b = await blobP; mostrarImagen(b, titulo); } catch (e2) { toast(e2.message || e2); }
+  }
+}
+function mostrarImagen(blob, titulo) { // plan B: la muestra para copiarla con clic derecho o guardarla
+  const u = URL.createObjectURL(blob); $('modal').innerHTML = `<div class="mbox wide" style="width:min(1100px,96vw)"><h3>📋 ${esc(titulo)}</h3><p class="note">Tu navegador no dejó copiar directo. Haz clic derecho sobre la imagen → <b>Copiar imagen</b>, o descárgala.</p><div style="max-height:62vh;overflow:auto;border:1px solid var(--line);border-radius:10px"><img src="${u}" style="display:block;max-width:none;width:100%"></div><div class="mfoot"><button class="btn" onclick="cerrarM()">Cerrar</button><a class="btn primary" href="${u}" download="${esc(titulo).replace(/[^\w\-]+/g, '_')}.png">⬇ Descargar</a></div></div>`; $('modal').hidden = false; $('modal').onclick = e => { if (e.target.id === 'modal') cerrarM(); };
+}
 const tpng = id => capturaDescargar($(id + '-w'), TB[id].titulo, subFiltros(), TB[id].file);
 const tpngCopiar = id => capturaCopiar($(id + '-w'), TB[id].titulo, subFiltros());
 const subFiltros = () => { const f = Object.entries(FL).filter(([, v]) => v).map(([k, v]) => v).join(' · '); return f || 'Todas las zonas'; };
@@ -287,24 +307,27 @@ function barraPeriodo(fn, opts = {}) {
   return `<div class="pbar" data-nocap><div class="seg">${modos.map(([k, n]) => `<button class="${PER.modo === k ? 'on' : ''}" onclick="PER.modo='${k}';${k === 'dia' ? "PER.desde=PER.desde||'" + L.max + "';" : ''}${fn}()">${n}</button>`).join('')}</div>${ctl}<span class="muted">${r.dias.length} día${r.dias.length > 1 ? 's' : ''} · ${fdate(r.desde)} al ${fdate(r.hasta)} (últimos 3 meses disponibles)</span></div>`;
 }
 
-/* ---------- árbol expandible: región > gerente > supervisor > tienda, con columnas numéricas ---------- */
+/* ---------- tabla expandible tipo Excel (tabla dinámica): región > gerente > supervisor > tienda, con columnas numéricas ---------- */
+let ARN = 0;
+function arRef(t) { const st = []; t.querySelectorAll('tbody tr[data-l]').forEach(tr => { const l = +tr.dataset.l, v = l === 0 || st[l - 1]; tr.style.display = v ? '' : 'none'; st[l] = v && tr.classList.contains('open'); }); }
+function arTog(tr) { tr.classList.toggle('open'); arRef(tr.closest('table')); }
+function arNivel(id, n) { const t = $(id); t.querySelectorAll('tbody tr[data-l]').forEach(tr => { if (tr.dataset.k === 'n') tr.classList.toggle('open', +tr.dataset.l < n); }); arRef(t); }
 function arbol(items, cols, o = {}) {
-  const T = x => tienda(x.idpdv) || {}, N = cols.length, gc = `minmax(230px,1fr) repeat(${N},${o.cw || 92}px)`;
-  const niv = [['region', 'Sin región', '🗺️'], ['gerente', 'Sin gerente', '👔'], ['supervisor', 'Sin supervisor', '🧑‍💼']];
-  const vals = arr => cols.map(c => c.f(arr));
-  const celdas = arr => vals(arr).map((v, i) => `<span class="ar-v ${cols[i].cls || ''}">${v === 0 && cols[i].cero !== true ? '<i>·</i>' : (cols[i].fmt ? cols[i].fmt(v) : fmt(v))}</span>`).join('');
-  const ord = (a, b) => (b[1].reduce(a0 => a0, 0), 0);
+  const T = x => tienda(x.idpdv) || {}, N = cols.length, id = 'ar' + (++ARN), niv = [['region', 'Sin región', '🗺️'], ['gerente', 'Sin gerente', '👔'], ['supervisor', 'Sin supervisor', '🧑‍💼']];
+  const val = (v, c) => v === 0 && c.cero !== true ? '' : (c.fmt ? c.fmt(v) : fmt(v));
+  const celdas = (arr, tot) => cols.map(c => { const v = c.f(arr); return `<td class="${tot ? '' : (c.cls === 'g' ? 'cg' : c.cls === 'r' ? 'cr' : '')}${v === 0 && !tot ? ' z' : ''}">${val(v, c)}</td>`; }).join('');
+  const orden = (a, b) => cols[N - 1].f(b[1]) - cols[N - 1].f(a[1]);
   function nodo(arr, nivel) {
-    if (nivel >= niv.length) { // tiendas
-      const g = new Map(); arr.forEach(x => { const k = T(x).nombre || ('IDPDV ' + x.idpdv); if (!g.has(k)) g.set(k, []); g.get(k).push(x); });
-      return [...g].sort((a, b) => cols[N - 1].f(b[1]) - cols[N - 1].f(a[1])).map(([k, v]) => `<div class="ar-row lf" style="grid-template-columns:${gc}"><span class="ar-t">🏬 ${esc(k)}</span>${celdas(v)}</div>`).join('');
-    }
+    if (nivel >= niv.length) { const g = new Map(); arr.forEach(x => { const k = T(x).nombre || ('IDPDV ' + x.idpdv); if (!g.has(k)) g.set(k, []); g.get(k).push(x); }); return [...g].sort(orden).map(([k, v]) => `<tr data-l="3" class="lf"><td class="t">${esc(k)}</td>${celdas(v)}</tr>`).join(''); }
     const [campo, vacio, ic] = niv[nivel], g = new Map(); arr.forEach(x => { const k = T(x)[campo] || vacio; if (!g.has(k)) g.set(k, []); g.get(k).push(x); });
-    return [...g].sort((a, b) => cols[N - 1].f(b[1]) - cols[N - 1].f(a[1])).map(([k, v]) => `<details class="ar-n l${nivel}" ${o.abierto ? 'open' : ''}><summary class="ar-row" style="grid-template-columns:${gc}"><span class="ar-t"><i class="ar-c">▸</i>${ic} ${esc(k)}</span>${celdas(v)}</summary>${nodo(v, nivel + 1)}</details>`).join('');
+    return [...g].sort(orden).map(([k, v]) => `<tr data-l="${nivel}" data-k="n" class="n l${nivel}${nivel < (o.abrir == null ? 1 : o.abrir) ? ' open' : ''}" onclick="arTog(this)"><td class="t"><i class="ar-c"></i>${ic} ${esc(k)}</td>${celdas(v)}</tr>` + nodo(v, nivel + 1)).join('');
   }
-  const head = `<div class="ar-row ar-h" style="grid-template-columns:${gc}"><span class="ar-t">${esc(o.titulo || 'REGIÓN / GERENTE / SUPERVISOR / TIENDA')}</span>${cols.map(c => `<span class="ar-v">${c.h}</span>`).join('')}</div>`;
-  const tot = `<div class="ar-row ar-tt" style="grid-template-columns:${gc}"><span class="ar-t">Total general</span>${vals(items).map((v, i) => `<span class="ar-v">${cols[i].fmt ? cols[i].fmt(v) : fmt(v)}</span>`).join('')}</div>`;
-  return `<div class="arbol">${head}${items.length ? nodo(items, 0) : '<div class="empty-in">Sin datos</div>'}${tot}</div>`;
+  const ctl = `<div class="tools" data-nocap><span class="muted">Toca ⊞ para abrir cada nivel</span><button class="btn sm" onclick="arNivel('${id}',0)">Contraer todo</button><button class="btn sm" onclick="arNivel('${id}',1)">Regiones</button><button class="btn sm" onclick="arNivel('${id}',2)">+ Gerentes</button><button class="btn sm" onclick="arNivel('${id}',3)">+ Supervisores</button><button class="btn sm" onclick="arNivel('${id}',4)">Todo abierto</button></div>`;
+  const cab = `<thead><tr><th class="t">${esc(o.titulo || 'REGIÓN / GERENTE / SUPERVISOR / TIENDA')}</th>${cols.map(c => `<th>${c.h}</th>`).join('')}</tr></thead>`;
+  const tot = `<tr class="tt"><td class="t">Total general</td>${cols.map(c => `<td>${val(c.f(items), { ...c, cero: true })}</td>`).join('')}</tr>`;
+  const body = items.length ? nodo(items, 0) : `<tr><td class="t" colspan="${N + 1}">Sin datos</td></tr>`;
+  setTimeout(() => { const t = $(id); if (t) arRef(t); }, 0);
+  return `${o.sinCtl ? '' : ctl}<div class="tw xlw"><table class="xl" id="${id}">${cab}<tbody>${body}${tot}</tbody></table></div>`;
 }
 
 /* >>> 03_reportes.js */
@@ -413,8 +436,8 @@ async function vResumen() {
     const labs = sems.map(w => w.w.slice(3));
     const est4 = sems.map(w => { const e = { Cubierta: 0, Descubierta: 0, Vacante: 0 }; xs.filter(x => (x.t.posiciones || 0) > 0).forEach(x => e[estatusTienda(x, w.dias).cob]++); return e; });
     const rotS = sems.map(w => { const hcS = hcPromX({ desde: w.desde, hasta: w.hasta }, () => true); const b = MV.baj.filter(x => x.f >= w.desde && x.f <= w.hasta && okI(x.idpdv)).length; return hcS ? b / hcS * 100 : null; });
-    h += `<div class="grid g2"><div class="card"><h3>📈 Tiendas cubiertas, descubiertas y vacantes · últimas 4 semanas</h3><p class="note">Estatus de cada tienda al cierre de la semana (últimos 2 días con datos). La línea es el % de tiendas cubiertas.</p>${legend([['Cubiertas', C.gr], ['Descubiertas', C.am], ['Vacantes', C.rd], ['% cubiertas', C.dk]])}${chart(labs, [{ n: 'Cubiertas', c: C.gr, v: est4.map(e => e.Cubierta) }, { n: 'Descubiertas', c: C.am, v: est4.map(e => e.Descubierta) }, { n: 'Vacantes', c: C.rd, v: est4.map(e => e.Vacante) }], { bars: 1, stack: 1, vals: 1, h: 300, lines2: [{ n: '% cubiertas', c: C.dk, v: est4.map(e => pn(e.Cubierta, e.Cubierta + e.Descubierta + e.Vacante)), trend: 0 }], y2: { pct: 1, max: 100 } })}</div>
-      <div class="card"><h3>🔄 Ingresos, bajas y rotación · últimas 4 semanas</h3><p class="note">Rotación del periodo: <b>${rot.rot == null ? '—' : f1(rot.rot) + '%'}</b> (${rot.baj} bajas ÷ ${fmt(rot.hc)} HC promedio). Línea: rotación semanal con su tendencia.</p>${legend([['Ingresos', C.gr], ['Bajas', C.rd], ['Rotación %', C.am], ['Tendencia', C.od]])}${chart(labs, [{ n: 'Ingresos', c: C.gr, v: sems.map(w => MV.ing.filter(x => x.f >= w.desde && x.f <= w.hasta && okI(x.idpdv)).length) }, { n: 'Bajas', c: C.rd, v: sems.map(w => MV.baj.filter(x => x.f >= w.desde && x.f <= w.hasta && okI(x.idpdv)).length) }], { bars: 1, vals: 1, h: 300, lines2: [{ n: 'Rotación %', c: C.am, v: rotS, trend: 1 }], y2: { pct: 1 } })}</div></div>`;
+    h += `<div class="grid g2"><div class="card"><h3>📈 Tiendas cubiertas, descubiertas y vacantes · últimas 4 semanas</h3><p class="note">Estatus de cada tienda al cierre de la semana (últimos 2 días con datos). La línea es el % de tiendas cubiertas.</p>${legend([['Cubiertas', C.gr], ['Descubiertas', C.am], ['Vacantes', C.rd], ['% cubiertas', C.dk]])}${chart(labs, [{ n: 'Cubiertas', c: C.gr, v: est4.map(e => e.Cubierta) }, { n: 'Descubiertas', c: C.am, v: est4.map(e => e.Descubierta) }, { n: 'Vacantes', c: C.rd, v: est4.map(e => e.Vacante) }], { bars: 1, stack: 1, vals: 1, h: 320, band: 1, lines2: [{ n: '% cubiertas', c: C.dk, v: est4.map(e => pn(e.Cubierta, e.Cubierta + e.Descubierta + e.Vacante)) }], y2: { pct: 1 } })}</div>
+      <div class="card"><h3>🔄 Ingresos, bajas y rotación · últimas 4 semanas</h3><p class="note">Rotación del periodo: <b>${rot.rot == null ? '—' : f1(rot.rot) + '%'}</b> (${rot.baj} bajas ÷ ${fmt(rot.hc)} HC promedio). Línea: rotación semanal con su tendencia.</p>${legend([['Ingresos', C.gr], ['Bajas', C.rd], ['Rotación %', C.od], ['Tendencia', C.dk]])}${chart(labs, [{ n: 'Ingresos', c: C.gr, v: sems.map(w => MV.ing.filter(x => x.f >= w.desde && x.f <= w.hasta && okI(x.idpdv)).length) }, { n: 'Bajas', c: C.rd, v: sems.map(w => MV.baj.filter(x => x.f >= w.desde && x.f <= w.hasta && okI(x.idpdv)).length) }], { bars: 1, vals: 1, h: 320, band: 1, lines2: [{ n: 'Rotación %', c: C.od, v: rotS, trend: 1 }], y2: { pct: 1 } })}</div></div>`;
     h += sect('Tiendas: medición de checks, asistencia y cobertura', '🧾') + `<p class="note">Periodo ${fdate(r.desde)} – ${fdate(r.hasta)}. Mueve la tabla a los lados o hacia abajo: encabezados e IDPDV/tienda se quedan fijos.</p>`;
     h += `<div class="tools" data-nocap><span>Estatus cobertura:</span><select onchange="R.estC=this.value;vResumen()"><option value="">Todos</option>${['Cubierta', 'Descubierta', 'Vacante'].map(e => `<option ${R.estC === e ? 'selected' : ''}>${e} (${ce[e]})</option>`).join('')}</select><span>Estatus asistencia:</span><select onchange="R.estA=this.value;vResumen()"><option value="">Todos</option>${['Cubierta', 'Posc Adic', 'Posc Desc', 'Descubierta', 'Posc Faltante', 'Vacante'].map(e => `<option ${R.estA === e ? 'selected' : ''}>${e}</option>`).join('')}</select></div>`;
     const rows = st.filter(z => (!R.estC || R.estC.startsWith(z.s.cob + ' (') || R.estC === z.s.cob) && (!R.estA || R.estA === z.s.asi)).map(({ x, s }) => ({ ...x, s, m: medTienda(x, dias), pe: penActual(x) }));
@@ -469,7 +492,7 @@ async function vPenal() {
 function tarjetaPen(o) {
   const lista = o.rows.slice().sort((a, b) => (b.t.cadena === 'Coppel') - (a.t.cadena === 'Coppel') || (b.dias || 0) - (a.dias || 0));
   const titulo = o.t.replace(/'/g, '');
-  const body = lista.length ? `<div class="tw tw-in"><table class="dt st"><thead><tr><th class="fx" style="left:0;min-width:92px">IDPDV</th><th class="fx t" style="left:92px;min-width:250px">Tienda</th>${o.racha ? '<th>Racha</th>' : ''}<th class="t">Periodo sin checks</th>${o.racha ? '' : '<th class="t">Hoy</th>'}<th class="t">Región</th><th class="t">Gerente</th><th class="t">Supervisor</th></tr></thead><tbody>${lista.map(x => `<tr><td class="fx" style="left:0;min-width:92px"><b>${x.id}</b></td><td class="fx t" style="left:92px;min-width:250px;max-width:250px"><div class="cut" title="${esc(x.t.nombre)}"><b>${esc(x.t.nombre)}</b></div><small class="muted">${esc(x.t.cadena)} · ${esc(x.t.estado)}</small></td>${o.racha ? `<td><span class="dchip ${x.dias >= 5 ? 'r' : x.dias >= 4 ? 'a' : 'g'}">${x.dias} d</span></td>` : ''}<td class="t">${x.per}</td>${o.racha ? '' : `<td class="t">${HOYE[x.p.hoy] || '—'}</td>`}<td class="t">${esc(x.t.region)}</td><td class="t">${esc(x.t.gerente)}</td><td class="t">${esc(x.t.supervisor)}</td></tr>`).join('')}</tbody></table></div>` : `<div class="empty-in">Sin tiendas en esta categoría 🎉</div>`;
+  const body = lista.length ? `<div class="tw tw-in"><table class="dt st"><thead><tr><th class="fx" style="left:0;min-width:92px">IDPDV</th><th class="fx t" style="left:92px;min-width:250px">Tienda</th>${o.racha ? '<th>Racha</th>' : ''}<th class="t">Periodo sin checks</th>${o.racha ? '' : '<th class="t">Hoy</th>'}<th class="t">Región</th><th class="t">Gerente</th><th class="t">Supervisor</th></tr></thead><tbody>${lista.map(x => `<tr><td class="fx" style="left:0;min-width:92px"><b>${x.id}</b></td><td class="fx t" style="left:92px;min-width:250px;max-width:250px"><div class="cut" style="max-width:226px" title="${esc(x.t.nombre)}"><b>${esc(x.t.nombre)}</b></div><small class="muted">${esc(x.t.cadena)} · ${esc(x.t.estado)}</small></td>${o.racha ? `<td><span class="dchip ${x.dias >= 5 ? 'r' : x.dias >= 4 ? 'a' : 'g'}">${x.dias} d</span></td>` : ''}<td class="t">${x.per}</td>${o.racha ? '' : `<td class="t">${HOYE[x.p.hoy] || '—'}</td>`}<td class="t">${esc(x.t.region)}</td><td class="t">${esc(x.t.gerente)}</td><td class="t">${esc(x.t.supervisor)}</td></tr>`).join('')}</tbody></table></div>` : `<div class="empty-in">Sin tiendas en esta categoría 🎉</div>`;
   return `<details class="alc ${o.k}" ${o.abrir && lista.length ? 'open' : ''}><summary><span class="alc-n">${lista.length}</span><div><b>${o.ic} ${esc(o.t)}</b><small>${esc(o.sub)}</small></div><button class="btn sm cam" data-nocap onclick="event.preventDefault();event.stopPropagation();capturaDescargar(this.closest('details'),'${o.ic} ${titulo} · ${fdate(HOY)}',subFiltros(),'alerta_${o.k}')">📸</button><i>▾</i></summary><div class="alc-body">${body}</div></details>`;
 }
 
@@ -567,7 +590,7 @@ async function vHC() {
     TB = {};
     h += sect('Promotores', '👥') + `<div class="tools" data-nocap><select onchange="HCF.est=this.value;vHC()"><option value="">Todos los estatus</option>${ests.map(e => `<option ${HCF.est === e ? 'selected' : ''}>${esc(e)}</option>`).join('')}</select><select onchange="HCF.tipo=this.value;vHC()"><option value="">Todo tipo de ingreso</option>${['Nuevo ingreso', 'Adaptación', 'Reingreso', 'Normal'].map(e => `<option ${HCF.tipo === e ? 'selected' : ''}>${e}</option>`).join('')}</select><select onchange="HCF.ant=this.value;vHC()"><option value="">Toda antigüedad</option>${ANTB.map(b => `<option ${HCF.ant === b[0] ? 'selected' : ''}>${b[0]}</option>`).join('')}</select><select onchange="HCF.emp=this.value;vHC()"><option value="">Toda razón social</option>${emps.map(e => `<option ${HCF.emp === e ? 'selected' : ''}>${esc(e)}</option>`).join('')}</select></div>`;
     h += tbl('t-hc', [{ h: 'Usuario', t: 1, v: q => q.usuario, w: 120 }, { h: 'Nombre', t: 1, v: q => q.nombre, w: 230, r: q => `<b>${esc(q.nombre)}</b>` },
-      { h: 'Estatus', t: 1, v: q => q.v.e, w: 250, r: q => { const pend = ['Posible baja', 'Descanso / falta / error'].includes(q.v.e) && q.alerta && can('alertas', 'editar'); return `<div class="est-c"><div class="est-r">${pillx((ACTI[q.v.e] || '🔵') + ' ' + esc(q.v.e), ACTC[q.v.e] || 'b')}${pend ? `<button class="btn xs primary" onclick="resolverDesdeHC(${q.alerta.id})">Resolver ›</button>` : ''}</div>${q.v.det ? `<small class="muted">${esc(q.v.det)}</small>` : ''}</div>`; } },
+      { h: 'Estatus', t: 1, v: q => q.v.e, w: 250, r: q => { const pend = ['Posible baja', 'Descanso / falta / error'].includes(q.v.e) && q.alerta && can('alertas', 'editar'); return `<div class="est-c"><div class="est-r">${pillx((ACTI[q.v.e] || '🔵') + ' ' + esc(q.v.e), ACTC[q.v.e] || 'b')}${pend ? `<button class="rsv" onclick="resolverDesdeHC(${q.alerta.id})">Resolver ›</button>` : ''}</div>${q.v.det ? `<small class="muted">${esc(q.v.det)}</small>` : ''}</div>`; } },
       { h: 'Tipo de ingreso', t: 1, v: q => q.tipo, r: q => pillx((TIPC[q.tipo][1] + ' ' + q.tipo).trim(), TIPC[q.tipo][0]) }, { h: 'Antigüedad', t: 1, v: q => q.ant, r: q => q.ant == null ? '—' : `<b>${esc(q.antL)}</b><br><small class="muted">${Math.floor(q.ant / 7)} sem · ${q.ant} d</small>` },
       { h: 'Fecha de ingreso', v: q => q.fecha_alta, r: q => fdate(q.fecha_alta) }, { h: 'Baja anterior', v: q => q.tipo_ingreso === 'Reingreso' ? q.baja_final : null, r: q => q.tipo_ingreso === 'Reingreso' ? fdate(q.baja_final) : '—' },
       { h: 'Último check', v: q => q.ultimo_check, r: q => fdate(q.ultimo_check) + (q.u.hora_in ? `<br><small class="muted">${hh(q.u.hora_in)} – ${hh(q.u.hora_out)}</small>` : '') }, { h: 'Tipo de check', t: 1, v: q => q.rol, r: q => esc(q.rol || '—') + (q.u.estatus_check ? `<br><small class="muted">${esc((ERRI[q.u.estatus_check] || '') + ' ' + (ERRN[q.u.estatus_check] || q.u.estatus_check))}</small>` : '') },
@@ -952,7 +975,7 @@ function modalReagendar(id) {
 const CADS = ['Coppel', 'Elektra', 'Suburbia', 'Cimaco'];
 function esquemaHtml(rows, titulo) {
   const cad = [...CADS, ...new Set(rows.map(c => (tienda(c.idpdv) || {}).cadena).filter(x => x && !CADS.includes(x)))];
-  return `<div class="esq">` + arbol(rows, [...cad.map(c => ({ h: c, f: a => a.filter(x => (tienda(x.idpdv) || {}).cadena === c).length })), { h: 'Total', f: a => a.length, cero: true }], { titulo: titulo + ' · REGIÓN / GERENTE / SUPERVISOR / TIENDA', cw: 84 }) + '</div>';
+  return `<div>` + arbol(rows, [...cad.map(c => ({ h: c, f: a => a.filter(x => (tienda(x.idpdv) || {}).cadena === c).length })), { h: 'Total general', f: a => a.length, cero: true }], { titulo: 'REGIÓN / GERENTE / SUPERVISOR / TIENDA', abrir: 2 }) + '</div>';
 }
 function modalOperaciones() {
   const d = IG.opd || addD(HOY, 1);
@@ -1012,11 +1035,11 @@ async function vMovs() {
     const pd = addD(r.desde, -dias), ph = addD(r.desde, -1), ingP = enR(MV.ing, pd, ph).length, bajP = enR(MV.baj, pd, ph).length;
     const semanas = []; if (dias <= 10) { r.dias.forEach(d => semanas.push({ l: d.slice(8) + '/' + d.slice(5, 7), d, h: d })); } else { const W = ventana(); W.forEach(w => { const s = rangoSemanaDe(W.indexOf(w)); if (s.hasta >= r.desde && s.desde <= r.hasta) semanas.push({ l: w.w.slice(3), d: s.desde < r.desde ? r.desde : s.desde, h: s.hasta > r.hasta ? r.hasta : s.hasta }); }); }
     const si = semanas.map(s => enR(MV.ing, s.d, s.h).length), sb_ = semanas.map(s => enR(MV.baj, s.d, s.h).length);
-    let h = cab('Ingresos y bajas', 'Ingresos (candidatos que ingresaron) y bajas registradas, con rotación, comparativos por semana y por cadena. Sirve de base para los cierres diarios y semanales.', 'saltando') + barraFiltros('vMovs') + barraPeriodo('vMovs');
+    let h = cab('Ingresos y bajas', 'Ingresos (candidatos que ingresaron) y bajas registradas, con rotación, comparativos por semana y por cadena. Sirve de base para los cierres diarios y semanales.', 'saltando') + barraFiltros('vMovs') + barraPeriodo('vMovs', { dia: true });
     h += `<div class="kpis kp-hero">${kp('Ingresos', fmt(ing.length), `${dl(ing.length, ingP, 0).replace('pts', '')}`.replace('vs ant.', 'vs periodo anterior (' + ingP + ')'), C.gr, null, '🙌')}${kp('Bajas', fmt(baj.length), `${dl(baj.length, bajP, 0).replace('pts', '').replace('vs ant.', 'vs periodo anterior (' + bajP + ')')}`, C.rd, null, '📤')}${kp('Neto', (ing.length - baj.length >= 0 ? '+' : '') + (ing.length - baj.length), 'ingresos − bajas', ing.length - baj.length >= 0 ? C.gr : C.rd, null, '⚖️')}${kp('Rotación del periodo', hc ? f1(baj.length / hc * 100) + '%' : '—', `${baj.length} bajas ÷ ${fmt(hc)} HC promedio`, C.am, null, '🔄')}</div>`;
     const rotS = semanas.map(s => { const hcS = hcPromX({ desde: s.d, hasta: s.h }, () => true); return hcS ? enR(MV.baj, s.d, s.h).length / hcS * 100 : null; });
-    h += `<div class="grid g2"><div class="card"><h3>📊 Ingresos, bajas y rotación por ${dias <= 10 ? 'día' : 'semana'}</h3><p class="note">Barras: cantidad. Línea naranja: % de rotación (eje derecho) con su tendencia punteada.</p>${legend([['Ingresos', C.gr], ['Bajas', C.rd], ['Rotación %', C.am], ['Tendencia', C.od]])}${chart(semanas.map(s => s.l), [{ n: 'Ingresos', c: C.gr, v: si }, { n: 'Bajas', c: C.rd, v: sb_ }], { bars: 1, vals: 1, h: 300, ticks: 16, lines2: [{ n: 'Rotación %', c: C.am, v: rotS, trend: 1 }], y2: { pct: 1 } })}</div>
-      <div class="card"><h3>🔄 Rotación ${dias <= 10 ? 'diaria' : 'semanal'} y tendencia</h3><p class="note">Bajas ÷ promotores con check (HC promedio). Si la línea punteada baja, la rotación va mejorando.</p>${chart(semanas.map(s => s.l), [{ n: 'Rotación %', c: C.am, v: rotS }], { pct: 1, h: 300, vals: 1, ticks: 16, lines: [] })}</div></div>`;
+    h += `<div class="grid g2"><div class="card"><h3>📊 Ingresos, bajas y rotación por ${dias <= 10 ? 'día' : 'semana'}</h3><p class="note">Barras: cantidad. Línea naranja: % de rotación (eje derecho) con su tendencia punteada.</p>${legend([['Ingresos', C.gr], ['Bajas', C.rd], ['Rotación %', C.od], ['Tendencia', C.dk]])}${chart(semanas.map(s => s.l), [{ n: 'Ingresos', c: C.gr, v: si }, { n: 'Bajas', c: C.rd, v: sb_ }], { bars: 1, vals: 1, h: 320, ticks: 16, band: 1, lines2: [{ n: 'Rotación %', c: C.od, v: rotS, trend: 1 }], y2: { pct: 1 } })}</div>
+      <div class="card"><h3>🔄 Rotación ${dias <= 10 ? 'diaria' : 'semanal'} y tendencia</h3><p class="note">Bajas ÷ promotores con check (HC promedio). Si la línea punteada baja, la rotación va mejorando.</p>${chart(semanas.map(s => s.l), [{ n: 'Rotación %', c: C.od, v: rotS }], { pct: 1, h: 320, vals: 1, ticks: 16 })}</div></div>`;
     const cads = [...new Set(R.T.filter(x => okT(x.t)).map(x => x.t.cadena).filter(Boolean))];
     const cr = cads.map(c => { const i = ing.filter(x => (tienda(x.idpdv) || {}).cadena === c).length, b = baj.filter(x => (tienda(x.idpdv) || {}).cadena === c).length, hcC = hcPromX(r, t => t.cadena === c); return { c, i, b, rot: hcC ? b / hcC * 100 : null }; }).sort((a, b) => b.i + b.b - a.i - a.b);
     const mot = {}; baj.forEach(x => mot[x.mot] = (mot[x.mot] || 0) + 1); const PAL = [C.or, C.bl, C.rd, C.pu, C.te, C.am, C.gr, C.gy];
@@ -1030,20 +1053,22 @@ async function vMovs() {
     TB = {};
     h += tbl('t-mv', [{ h: DIMV.find(x => x[0] === MVX.ver)[1], t: 1, v: q => q.n, w: 240, r: q => `<b>${esc(q.n)}</b>` }, { h: '🙌 Ingresos', v: q => q.i, r: q => `<b class="cell-green">${q.i}</b>` }, { h: '📤 Bajas', v: q => q.b, r: q => `<b class="cell-red">${q.b}</b>` }, { h: '⚖️ Neto', v: q => q.net, r: q => `<span class="${q.net < 0 ? 'cell-red' : 'cell-green'}">${q.net > 0 ? '+' : ''}${q.net}</span>` }, { h: 'HC promedio', v: q => q.hc, r: q => fmt(q.hc) }, { h: '🔄 Rotación', v: q => q.rot, r: q => q.rot == null ? '—' : `<span class="bar-pct ${q.rot > 40 ? 'ko' : q.rot > 25 ? 'wa' : 'ok'}">${f1(q.rot)}%</span>` }],
       rows, { fix: 1, csv: 1, png: 1, file: 'ingresos_bajas_estructura', titulo: 'Ingresos y bajas por ' + DIMV.find(x => x[0] === MVX.ver)[1], sort: 1, dir: -1, maxh: '60vh' });
-    // cierres compartibles
-    const dsel = MVX.dia || (r.hasta); const dI = enR(MV.ing, dsel, dsel), dB = enR(MV.baj, dsel, dsel);
-    const sI = semanaCierre(r.hasta);
-    h += sect('Imágenes para compartir', '📸') + `<div class="grid g2"><div class="card"><div class="card-h"><h3>☀️ Cierre diario</h3><input type="date" data-nocap min="${limites().min}" max="${HOY}" value="${dsel}" onchange="MVX.dia=this.value;vMovs()"></div><div id="cierre-dia" class="cap-pad">${cierreHtml('Ingresos y bajas · ' + fdia(dsel), dI, dB)}</div><div class="tools" data-nocap><button class="btn sm" onclick="capturaDescargar($('cierre-dia'),'Cierre diario · ${fdia(dsel)}',subFiltros(),'cierre_diario')">📸 Imagen</button><button class="btn sm" onclick="capturaCopiar($('cierre-dia'),'Cierre diario · ${fdia(dsel)}',subFiltros())">📋 Copiar</button></div></div>
-      <div class="card"><h3>📅 Cierre semanal</h3><div id="cierre-sem" class="cap-pad">${cierreHtml('Semana ' + sI.w + ' · ' + fdate(sI.desde) + ' al ' + fdate(sI.hasta), enR(MV.ing, sI.desde, sI.hasta), enR(MV.baj, sI.desde, sI.hasta))}</div><div class="tools" data-nocap><button class="btn sm" onclick="capturaDescargar($('cierre-sem'),'Cierre semanal ${sI.w}',subFiltros(),'cierre_semanal')">📸 Imagen</button><button class="btn sm" onclick="capturaCopiar($('cierre-sem'),'Cierre semanal ${sI.w}',subFiltros())">📋 Copiar</button></div></div></div>`;
+    // cierre: una sola tabla expandible (región > gerente > supervisor > tienda) con una columna por cadena, del periodo elegido arriba
+    const met = MVX.met || 'i', METN = { i: '🙌 Ingresos', b: '📤 Bajas', n: '⚖️ Neto' };
+    const items = [...ing.map(x => ({ idpdv: x.idpdv, tipo: 'i' })), ...baj.map(x => ({ idpdv: x.idpdv, tipo: 'b' }))];
+    const cadX = [...CADS, ...new Set(items.map(x => (tienda(x.idpdv) || {}).cadena).filter(c => c && !CADS.includes(c)))];
+    const cnt = (a, c, t) => a.filter(x => x.tipo === t && (!c || (tienda(x.idpdv) || {}).cadena === c)).length;
+    const fm = c => a => met === 'n' ? cnt(a, c, 'i') - cnt(a, c, 'b') : cnt(a, c, met);
+    const nf = v => (v > 0 ? '+' : '') + v;
+    const colsX = [...cadX.map(c => ({ h: c, f: fm(c), cero: met === 'n', fmt: met === 'n' ? nf : null })), { h: 'Total general', f: fm(null), cero: true, fmt: met === 'n' ? nf : null }];
+    const perT = PER.modo === 'semana' ? 'Semana ' + ventana()[PER.sem == null ? ventana().length - 1 : PER.sem].w + ' · ' : PER.modo === 'mes' ? mlabel(PER.mes || r.hasta.slice(0, 7)) + ' · ' : '';
+    const perL = perT + (r.desde === r.hasta ? fdia(r.desde) : fdate(r.desde) + ' al ' + fdate(r.hasta));
+    const tt = `${METN[met].replace(/^\S+ /, '')} · ${perL}`;
+    h += sect('Cierre por región, gerente, supervisor y tienda', '📸') + `<p class="note">Sigue el periodo de arriba: semana → cierre semanal, mes → mensual, día → diario, o un rango.</p><div class="tools" data-nocap><div class="seg">${Object.entries(METN).map(([k, n]) => `<button class="${met === k ? 'on' : ''}" onclick="MVX.met='${k}';vMovs()">${n}</button>`).join('')}</div><span class="tb-btns"><button class="btn sm" onclick="capturaDescargar($('cierre-x'),'Cierre · ${tt}',subFiltros(),'cierre_${met}')">📸 Imagen</button><button class="btn sm" onclick="capturaCopiar($('cierre-x'),'Cierre · ${tt}',subFiltros())">📋 Copiar</button></span></div><div id="cierre-x" class="cap-pad"><div class="cierre-t">${esc(tt)}</div>${arbol(items, colsX, { titulo: 'REGIÓN / GERENTE / SUPERVISOR / TIENDA', abrir: 2 })}</div>`;
     $('content').innerHTML = h; drawAll();
   });
 }
 function semanaCierre(d) { const W = ventana(); let i = W.findIndex(w => addD(w.ini, 6) >= d && w.ini <= d); if (i < 0) i = W.length - 1; const s = rangoSemanaDe(i); return { w: W[i].w, ...s }; }
-function cierreHtml(titulo, ing, baj) {
-  const items = [...ing.map(x => ({ idpdv: x.idpdv, tipo: 'i' })), ...baj.map(x => ({ idpdv: x.idpdv, tipo: 'b' }))];
-  return `<div class="cierre"><div class="cierre-t">${esc(titulo)}</div><div class="cierre-k"><div><b class="cell-green">${ing.length}</b><span>🙌 Ingresos</span></div><div><b class="cell-red">${baj.length}</b><span>📤 Bajas</span></div><div><b>${ing.length - baj.length >= 0 ? '+' : ''}${ing.length - baj.length}</b><span>⚖️ Neto</span></div></div>` +
-    arbol(items, [{ h: 'Ingresos', f: a => a.filter(x => x.tipo === 'i').length, cls: 'g' }, { h: 'Bajas', f: a => a.filter(x => x.tipo === 'b').length, cls: 'r' }, { h: 'Neto', f: a => a.filter(x => x.tipo === 'i').length - a.filter(x => x.tipo === 'b').length, cero: true, fmt: v => (v > 0 ? '+' : '') + v }], { titulo: 'REGIÓN / GERENTE / SUPERVISOR / TIENDA', cw: 78 }) + '</div>';
-}
 
 /* >>> 08_demo_reportes.js */
 /* ----- datos de ejemplo para reportes, ingresos y movimientos (todo ficticio) ----- */
