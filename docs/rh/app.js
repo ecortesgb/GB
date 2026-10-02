@@ -739,7 +739,7 @@ const CAMPOS = [
   { k: 'fuente', h: 'Medio', w: 140, tipo: 'sel' }, { k: 'recl', h: 'Reclutado por', w: 140, tipo: 'sel' }, { k: 'generado', h: 'Generado por', w: 128, tipo: 'sel' },
   { k: 'experiencia', h: 'Experiencia', w: 170, tipo: 'sel' }, { k: 'acomp', h: 'Acompañamiento', w: 130, tipo: 'sel' }, { k: 'referido', h: 'Referido por', w: 130 }, { k: 'coment', h: 'Comentarios', w: 180 }
 ];
-const filaVacia = () => ({ fecha: '', nombre: '', idpdv: '', fuente: '', recl: S.me && S.me.reclutador_id && S.me.permisos.posibles_ingresos.alcance === 'propio' ? String(S.me.reclutador_id) : '', generado: '', experiencia: '', acomp: '', referido: '', coment: '' });
+const filaVacia = () => ({ fecha: '', nombre: '', idpdv: '', fuente: '', recl: S.me && S.me.reclutador_id ? String(S.me.reclutador_id) : '', generado: '', experiencia: '', acomp: '', referido: '', coment: '' });
 function opcionesCampo(k) {
   const c = IG.cat;
   if (k === 'fuente') return c.fuentes.map(x => [String(x.id), x.fuente]); if (k === 'recl') return c.recl.map(x => [String(x.id), x.nombre]);
