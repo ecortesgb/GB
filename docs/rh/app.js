@@ -17,9 +17,13 @@ const NIVEL = { admin: 'Administrador', direccion: 'Dirección', gerente: 'Geren
 
 /* ====================================================================== capa de datos ====================================================================== */
 let sb = null;
-async function todo(q) { // pagina de 1000 en 1000
+async function todo(q) { // pagina de 1000 en 1000, con reintentos si la red falla
   let out = [], i = 0;
-  for (;;) { const { data, error } = await q().range(i, i + 999); if (error) throw error; out = out.concat(data); if (data.length < 1000) return out; i += 1000; }
+  for (;;) {
+    let data, error;
+    for (let k = 0; k < 4; k++) { try { ({ data, error } = await q().range(i, i + 999)); if (!error) break; } catch (e) { error = e; } await new Promise(r => setTimeout(r, 700 * (k + 1))); }
+    if (error) throw error; out = out.concat(data); if (data.length < 1000) return out; i += 1000;
+  }
 }
 const Real = {
   async init() { sb = window.supabase.createClient(CFG.url, CFG.key, { auth: { persistSession: true, autoRefreshToken: true } }); const { data } = await sb.auth.getSession(); return !!data.session; },
@@ -106,51 +110,65 @@ const API = DEMO ? Demo : Real;
 /* ====================================================================== UI: gráficos, tablas fijas, filtros, periodo, capturas ====================================================================== */
 const MESN = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 const mlabel = k => MESN[+k.slice(5, 7) - 1] + ' ' + k.slice(2, 4);
-const f1 = n => n == null || isNaN(n) ? '—' : n.toLocaleString('es-MX', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
-const fmt1 = n => n == null || isNaN(n) ? '—' : (Math.abs(n - Math.round(n)) < 0.05 ? Math.round(n).toLocaleString('es-MX') : n.toLocaleString('es-MX', { minimumFractionDigits: 1, maximumFractionDigits: 1 }));
+const f1 = n => n == null || isNaN(n) ? '—' : n.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fmt1 = n => n == null || isNaN(n) ? '—' : (Math.abs(n - Math.round(n)) < 0.005 ? Math.round(n).toLocaleString('es-MX') : n.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
 const pn = (a, b) => b > 0 ? a / b * 100 : null;
-const pc1 = (a, b) => b > 0 ? (a / b * 100).toFixed(1) + '%' : '—';
-const pct = (a, b, d = 1) => b > 0 ? (a / b * 100).toFixed(d) + '%' : '—';
+const pc1 = (a, b) => b > 0 ? (a / b * 100).toFixed(2) + '%' : '—';
+const pct = (a, b, d = 2) => b > 0 ? (a / b * 100).toFixed(d) + '%' : '—';
 const C = { or: '#EE6602', od: '#C74F00', gr: '#1E7A1E', rd: '#DC2626', am: '#D97706', ye: '#F2C94C', bl: '#00509C', pu: '#5C2483', gy: '#8B939E', dk: '#3B4048', te: '#0F8B8D' };
 const pillx = (t, c) => `<span class="pill ${c}">${t}</span>`;
 const kp = (l, v, s, col, click, ic) => `<div class="kpi ${click ? 'click' : ''}" ${click ? `onclick="${click}"` : ''}><div class="l">${ic ? `<span class="kic">${ic}</span>` : ''}${l}</div><div class="v" style="${col ? 'color:' + col : ''}">${v}</div><div class="s">${s || '&nbsp;'}</div></div>`;
 const sect = (t, ic) => `<div class="section-title"><span class="bar"></span><h3>${ic ? ic + ' ' : ''}${t}</h3></div>`;
 const legend = items => `<div class="leg">${items.map(([n, c]) => `<span><b style="background:${c}"></b>${n}</span>`).join('')}</div>`;
-const dl = (a, b, fx = 1) => a == null || b == null ? '' : `<span class="${a - b >= 0 ? 'up' : 'dn'}">${a - b >= 0 ? '▲' : '▼'} ${Math.abs(a - b).toFixed(fx)} pts vs ant.</span>`;
+const dl = (a, b, fx = 2) => a == null || b == null ? '' : `<span class="${a - b >= 0 ? 'up' : 'dn'}">${a - b >= 0 ? '▲' : '▼'} ${Math.abs(a - b).toFixed(fx)} pts vs ant.</span>`;
 
 /* ---------- gráficos SVG ---------- */
 function niceMax(v) { if (v <= 0) return 1; const p = Math.pow(10, Math.floor(Math.log10(v))), m = v / p; return (m <= 1 ? 1 : m <= 2 ? 2 : m <= 5 ? 5 : 10) * p; }
+function regresion(vals) { // recta de tendencia (mínimos cuadrados) sobre los puntos con dato
+  const p = vals.map((v, i) => [i, v]).filter(q => q[1] != null); if (p.length < 2) return null;
+  const n = p.length, sx = p.reduce((a, q) => a + q[0], 0), sy = p.reduce((a, q) => a + q[1], 0), sxy = p.reduce((a, q) => a + q[0] * q[1], 0), sxx = p.reduce((a, q) => a + q[0] * q[0], 0), d = n * sxx - sx * sx;
+  if (!d) return null; const m = (n * sxy - sx * sy) / d, b = (sy - m * sx) / n; return i => b + m * i;
+}
+/* chart(labels, series, {bars, stack, pct, max, h, w, ticks, vals, lines (misma escala), lines2 (escala derecha), y2:{max,pct}}) */
 function chart(labels, series, o = {}) {
-  const W = o.w || 760, H = o.h || 240, L = 44, R = 14, T = 20, B = 28, pw = W - L - R, ph = H - T - B, n = labels.length;
+  const l2 = o.lines2 || [], W = o.w || 760, H = o.h || 260, L = 50, R = l2.length ? 56 : 16, T = 24, B = 30, pw = W - L - R, ph = H - T - B, n = labels.length;
   const all = [...series.flatMap(s => s.v), ...(o.lines || []).flatMap(s => s.v)].filter(x => x != null);
   let mx = o.max != null ? o.max : niceMax(Math.max(1e-9, ...all));
   if (o.stack) { const tot = labels.map((_, i) => series.reduce((a, s) => a + (s.v[i] || 0), 0)); mx = o.max != null ? o.max : niceMax(Math.max(1e-9, ...tot, ...(o.lines || []).flatMap(s => s.v).filter(x => x != null))); }
-  const y = v => T + ph - (v / mx) * ph, bw = pw / Math.max(1, n), xc = i => L + i * bw + bw / 2, xs = i => L + (n <= 1 ? pw / 2 : i * pw / (n - 1));
-  const lab = v => o.pct ? Math.round(v) + '%' : fmt(v);
+  const y = v => T + ph - (v / mx) * ph, bw = pw / Math.max(1, n), xc = i => L + i * bw + bw / 2, xs = i => L + (n <= 1 ? pw / 2 : i * pw / (n - 1)), X = i => o.bars ? xc(i) : xs(i);
+  const v2 = l2.flatMap(s => s.v).filter(x => x != null), mx2 = o.y2 && o.y2.max != null ? o.y2.max : niceMax(Math.max(1e-9, ...v2) * 1.15), y2 = v => T + ph - (v / mx2) * ph;
+  const lab = v => o.pct ? Math.round(v) + '%' : fmt(v), lab2 = v => o.y2 && o.y2.pct ? v.toFixed(2) + '%' : fmt1(v);
   let g = '';
-  for (let k = 0; k <= 4; k++) { const v = mx * k / 4; g += `<line class="g" x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}"/><text x="${L - 6}" y="${y(v) + 3}" text-anchor="end">${lab(v)}</text>`; }
+  for (let k = 0; k <= 4; k++) { const v = mx * k / 4; g += `<line class="g" x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}"/><text x="${L - 7}" y="${y(v) + 4}" text-anchor="end">${lab(v)}</text>`; if (l2.length) g += `<text x="${W - R + 7}" y="${y(v) + 4}" text-anchor="start" style="fill:#B26A00">${o.y2 && o.y2.pct ? (mx2 * k / 4).toFixed(1) + '%' : fmt1(mx2 * k / 4)}</text>`; }
   const every = Math.ceil(n / (o.ticks || 14));
-  labels.forEach((l, i) => { if (i % every === 0) g += `<text x="${o.bars ? xc(i) : xs(i)}" y="${H - 8}" text-anchor="middle">${esc(l)}</text>`; });
+  labels.forEach((l, i) => { if (i % every === 0) g += `<text x="${X(i)}" y="${H - 9}" text-anchor="middle">${esc(l)}</text>`; });
+  const val = (x, yy, t, c) => `<text x="${x}" y="${yy}" text-anchor="middle" class="vl" style="fill:${c}">${t}</text>`;
   if (o.bars) {
     const ns = o.stack ? 1 : series.length, w = Math.max(3, bw * 0.74 / ns);
     labels.forEach((_, i) => {
       let acc = 0;
       series.forEach((s, j) => {
         const v = s.v[i] || 0, x = o.stack ? L + i * bw + bw * 0.13 : L + i * bw + bw * 0.13 + j * w, h = v / mx * ph, yy = o.stack ? T + ph - (acc + v) / mx * ph : T + ph - h, ww = o.stack ? bw * 0.74 : w;
-        g += `<rect x="${x}" y="${yy}" width="${ww}" height="${Math.max(0, h)}" fill="${s.c}" rx="3"><title>${esc(labels[i])} · ${esc(s.n)}: ${o.pct ? v.toFixed(1) + '%' : fmt(v)}</title></rect>`;
-        if (o.vals && h > 15 && ww > 16) g += `<text x="${x + ww / 2}" y="${yy + h / 2 + 4}" text-anchor="middle" style="fill:#fff;font-weight:800;font-size:11px">${fmt(v)}</text>`;
+        g += `<rect x="${x}" y="${yy}" width="${ww}" height="${Math.max(0, h)}" fill="${s.c}" rx="3"><title>${esc(labels[i])} · ${esc(s.n)}: ${o.pct ? v.toFixed(2) + '%' : fmt(v)}</title></rect>`;
+        if (o.vals && v > 0) { if (h > 17 && ww > 18) g += val(x + ww / 2, yy + h / 2 + 4, fmt(v), '#fff'); else g += val(x + ww / 2, yy - 4, fmt(v), s.c === C.gr ? C.gr : s.c); }
         acc += v;
       });
     });
   } else series.forEach(s => {
     let d = ''; s.v.forEach((v, i) => { if (v != null) d += (d ? 'L' : 'M') + xs(i) + ',' + y(v); });
-    g += `<path d="${d}" fill="none" stroke="${s.c}" stroke-width="2.6" stroke-linejoin="round"/>`;
-    s.v.forEach((v, i) => { if (v != null) g += `<circle cx="${xs(i)}" cy="${y(v)}" r="3.2" fill="${s.c}"><title>${esc(labels[i])} · ${esc(s.n)}: ${o.pct ? v.toFixed(1) + '%' : fmt(v)}</title></circle>${o.vals ? `<text x="${xs(i)}" y="${y(v) - 8}" text-anchor="middle" style="font-weight:800;font-size:10px;fill:${s.c}">${o.pct ? v.toFixed(0) + '%' : fmt(v)}</text>` : ''}`; });
+    g += `<path d="${d}" fill="none" stroke="${s.c}" stroke-width="2.8" stroke-linejoin="round"/>`;
+    s.v.forEach((v, i) => { if (v != null) g += `<circle cx="${xs(i)}" cy="${y(v)}" r="3.4" fill="${s.c}"><title>${esc(labels[i])} · ${esc(s.n)}: ${o.pct ? v.toFixed(2) + '%' : fmt(v)}</title></circle>${o.vals ? val(xs(i), y(v) - 9, o.pct ? v.toFixed(2) + '%' : fmt(v), s.c) : ''}`; });
   });
   (o.lines || []).forEach(s => {
-    let d = ''; s.v.forEach((v, i) => { if (v != null) d += (d ? 'L' : 'M') + (o.bars ? xc(i) : xs(i)) + ',' + y(v); });
-    g += `<path d="${d}" fill="none" stroke="${s.c}" stroke-width="2.6" stroke-dasharray="${s.dash || ''}"/>`;
-    s.v.forEach((v, i) => { if (v != null) g += `<circle cx="${o.bars ? xc(i) : xs(i)}" cy="${y(v)}" r="3.4" fill="#fff" stroke="${s.c}" stroke-width="2"><title>${esc(labels[i])} · ${esc(s.n)}: ${o.pct2 ? v.toFixed(1) + '%' : fmt(v)}</title></circle>`; });
+    let d = ''; s.v.forEach((v, i) => { if (v != null) d += (d ? 'L' : 'M') + X(i) + ',' + y(v); });
+    g += `<path d="${d}" fill="none" stroke="${s.c}" stroke-width="2.8" stroke-dasharray="${s.dash || ''}"/>`;
+    s.v.forEach((v, i) => { if (v != null) g += `<circle cx="${X(i)}" cy="${y(v)}" r="3.6" fill="#fff" stroke="${s.c}" stroke-width="2"><title>${esc(labels[i])} · ${esc(s.n)}: ${o.pct2 ? v.toFixed(2) + '%' : fmt(v)}</title></circle>`; });
+  });
+  l2.forEach(s => {
+    let d = ''; s.v.forEach((v, i) => { if (v != null) d += (d ? 'L' : 'M') + X(i) + ',' + y2(v); });
+    g += `<path d="${d}" fill="none" stroke="${s.c}" stroke-width="3"/>`;
+    s.v.forEach((v, i) => { if (v != null) g += `<circle cx="${X(i)}" cy="${y2(v)}" r="4" fill="#fff" stroke="${s.c}" stroke-width="2.4"><title>${esc(labels[i])} · ${esc(s.n)}: ${lab2(v)}</title></circle>${val(X(i), y2(v) - 11, lab2(v), s.c)}`; });
+    const f = s.trend ? regresion(s.v) : null; if (f) g += `<line x1="${X(0)}" y1="${y2(f(0))}" x2="${X(n - 1)}" y2="${y2(f(n - 1))}" stroke="${s.c}" stroke-width="2.2" stroke-dasharray="7 5" opacity=".75"><title>Tendencia de ${esc(s.n)}</title></line>`;
   });
   return `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img">${g}</svg>`;
 }
@@ -168,7 +186,7 @@ function donut(items, o = {}) {
 }
 function hbars(rows, col, o = {}) {
   const mx = Math.max(1e-9, ...rows.map(r => r.v));
-  return `<div class="funnel">${rows.map(r => `<div class="frow"><span title="${esc(r.n)}" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.n)}</span><div class="fb"><i style="width:${Math.max(2, r.v / mx * 100)}%;background:${r.c || col}"></i></div><span>${o.pct ? r.v.toFixed(1) + '%' : fmt(r.v)}${r.s ? ` <small class="pc">${r.s}</small>` : ''}</span></div>`).join('')}</div>`;
+  return `<div class="funnel">${rows.map(r => `<div class="frow"><span title="${esc(r.n)}" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.n)}</span><div class="fb"><i style="width:${Math.max(2, r.v / mx * 100)}%;background:${r.c || col}"></i></div><span>${o.pct ? r.v.toFixed(2) + '%' : fmt(r.v)}${r.s ? ` <small class="pc">${r.s}</small>` : ''}</span></div>`).join('')}</div>`;
 }
 function embudo(titulo, etapas) {
   const mx = etapas[0].v || 1;
@@ -192,7 +210,7 @@ function tdraw(id) {
   let h = '<thead>';
   if (T.groups) { let k = 0; h += '<tr class="g1">' + T.groups.map(g => { const cells = T.cols.slice(k, k + g.span); const fixed = k < T.fix; const lf = fixed ? left[k] : 0; const w = fixed ? cells.reduce((a, c, j) => a + (k + j < T.fix ? (c.w || 110) : 0), 0) : 0; const r = `<th colspan="${g.span}" class="gh ${g.cls || ''}${fixed ? ' fx' : ''}" ${fixed ? `style="left:${lf}px;min-width:${w}px"` : ''}>${g.t}</th>`; k += g.span; return r; }).join('') + '</tr>'; }
   h += `<tr class="${T.groups ? 'g2' : ''}">` + T.cols.map(th).join('') + '</tr></thead><tbody>';
-  h += shown.map(r => '<tr>' + T.cols.map((c, i) => { const v = c.v(r), disp = c.r ? c.r(r) : (v == null ? '—' : (typeof v === 'number' ? (c.h === 'IDPDV' ? v : fmt(v)) : esc(v))); const cl = (typeof c.c === 'function' ? c.c(r) : c.c) || ''; return `<td class="${c.t ? 't ' : ''}${i < T.fix ? 'fx ' : ''}${cl}" ${i < T.fix ? `style="left:${left[i]}px;min-width:${c.w || 110}px;max-width:${c.w || 110}px"` : ''}>${disp}</td>`; }).join('') + '</tr>').join('');
+  h += shown.map(r => '<tr>' + T.cols.map((c, i) => { const v = c.v(r), disp = c.r ? c.r(r) : (v == null ? '—' : (typeof v === 'number' ? (c.h === 'IDPDV' ? v : fmt(v)) : esc(v))); const cl = (typeof c.c === 'function' ? c.c(r) : c.c) || ''; return `<td class="${c.t ? 't ' : ''}${i < T.fix ? 'fx ' : ''}${cl}" ${i < T.fix ? `style="left:${left[i]}px;min-width:${c.w || 110}px;max-width:${c.w || 110}px"` : ''}>${i < T.fix ? `<div class="cut" title="${esc(String(v == null ? '' : v))}">${disp}</div>` : disp}</td>`; }).join('') + '</tr>').join('');
   el.innerHTML = h + '</tbody>';
   const n = $(id + '-n'); if (n) n.textContent = rows.length > T.lim ? `Mostrando ${T.lim} de ${fmt(rows.length)}` : `${fmt(rows.length)} filas`;
 }
@@ -210,10 +228,13 @@ async function pngDe(el, titulo, sub) {
   if (!window.html2canvas) throw new Error('El generador de imágenes no cargó (revisa tu conexión).');
   const box = document.createElement('div'); box.className = 'cap-box';
   box.innerHTML = `<div class="cap-head"><img src="${img('logo_gb')}" alt=""><div><b>${esc(titulo)}</b><small>${esc(sub || '')}</small></div><span>Grupo Benber · RH · ${fdate(HOY)}</span></div>`;
-  const clon = el.cloneNode(true); clon.querySelectorAll('.tw').forEach(t => { t.style.maxHeight = 'none'; t.style.overflow = 'visible'; }); clon.querySelectorAll('[data-nocap]').forEach(x => x.remove());
-  clon.querySelectorAll('details').forEach(d => d.setAttribute('open', ''));
+  const clon = el.cloneNode(true);
+  clon.querySelectorAll('.tw').forEach(t => { t.style.maxHeight = 'none'; t.style.overflow = 'visible'; t.style.width = 'max-content'; t.style.maxWidth = 'none'; });
+  clon.querySelectorAll('[data-nocap]').forEach(x => x.remove()); clon.querySelectorAll('details').forEach(d => d.setAttribute('open', ''));
+  clon.querySelectorAll('.fx').forEach(x => { x.style.position = 'static'; x.style.left = 'auto'; }); clon.querySelectorAll('.cut').forEach(x => { x.style.overflow = 'visible'; x.style.textOverflow = 'clip'; });
+  clon.querySelectorAll('thead th').forEach(x => { x.style.position = 'static'; });
   box.appendChild(clon); document.body.appendChild(box);
-  try { return await html2canvas(box, { scale: 2, backgroundColor: '#ffffff', useCORS: true, windowWidth: Math.max(box.scrollWidth, 900) }); } finally { box.remove(); }
+  try { await (document.fonts && document.fonts.ready); const w = Math.max(box.scrollWidth, 760); return await html2canvas(box, { scale: 2, backgroundColor: '#ffffff', useCORS: true, width: w, windowWidth: w + 40, scrollX: 0, scrollY: 0 }); } finally { box.remove(); }
 }
 async function capturaDescargar(el, titulo, sub, nombre) { toast('Generando imagen…'); try { const c = await pngDe(el, titulo, sub); const a = document.createElement('a'); a.href = c.toDataURL('image/png'); a.download = (nombre || titulo).replace(/[^\w\-]+/g, '_') + '_' + HOY + '.png'; a.click(); toast('Imagen descargada'); } catch (e) { toast(e.message || e); } }
 async function capturaCopiar(el, titulo, sub) { toast('Generando imagen…'); try { const c = await pngDe(el, titulo, sub); c.toBlob(async b => { try { await navigator.clipboard.write([new ClipboardItem({ 'image/png': b })]); toast('Imagen copiada: pégala en WhatsApp'); } catch (e) { toast('Tu navegador no permite copiar imágenes; usa Descargar'); } }); } catch (e) { toast(e.message || e); } }
@@ -238,7 +259,7 @@ function barraFiltros(fn, base, campos) {
 /* ---------- periodo: semana · mes · rango (como Avance GB) ---------- */
 const PER = { modo: 'semana', sem: null, mes: null, desde: null, hasta: null };
 function ventana() { return R.meta.ventana; }
-function limites() { return { min: R.meta.cd_desde, max: R.meta.ultima_fecha || HOY }; }
+function limites() { const max = R.meta.ultima_fecha || HOY, d = new Date(max.slice(0, 7) + '-01T12:00:00'); d.setMonth(d.getMonth() - 2); const m3 = d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-01'; return { min: R.meta.cd_desde > m3 ? R.meta.cd_desde : m3, max, mes3: m3 }; }
 function rangoSemanaDe(i) { const w = ventana()[i], L = limites(); const fin = [addD(w.ini, 6), L.max].reduce((a, b) => a < b ? a : b); return { desde: w.ini, hasta: fin }; }
 function perRango() {
   const L = limites(), W = ventana(); let d, h;
@@ -255,15 +276,35 @@ function semanasUlt4(r) { // las 4 últimas semanas (lun-dom) contra las que se 
   const out = []; for (let k = Math.max(0, i - 3); k <= i; k++) { const s = rangoSemanaDe(k); const dias = []; for (let x = s.desde; x <= s.hasta; x = addD(x, 1)) dias.push(x); out.push({ i: k, w: W[k].w, ...s, dias }); }
   return out;
 }
-function meses3() { const L = limites(), out = []; for (let m = L.min.slice(0, 7); m <= L.max.slice(0, 7);) { out.push(m); const x = new Date(m + '-01T12:00:00'); x.setMonth(x.getMonth() + 1); m = x.getFullYear() + '-' + pad(x.getMonth() + 1); } return out; }
+function meses3() { const L = limites(), out = []; let m = L.max.slice(0, 7); for (let k = 0; k < 3; k++) { out.unshift(m); const x = new Date(m + '-01T12:00:00'); x.setMonth(x.getMonth() - 1); m = x.getFullYear() + '-' + pad(x.getMonth() + 1); } return out; }
 function barraPeriodo(fn, opts = {}) {
   const W = ventana(), L = limites(), r = perRango(), modos = [['semana', '📅 Semana'], ['mes', '🗓️ Mes'], ['rango', '↔️ Rango'], ...(opts.dia ? [['dia', '☀️ Día']] : [])];
   let ctl = '';
-  if (PER.modo === 'semana') ctl = `<select onchange="PER.sem=+this.value;${fn}()">${W.map((w, k) => `<option value="${k}" ${k === PER.sem ? 'selected' : ''}>${w.w} · ${fdate(w.ini)}${k === W.length - 1 ? ' (en curso)' : ''}</option>`).join('')}</select>`;
+  if (PER.modo === 'semana') ctl = `<select onchange="PER.sem=+this.value;${fn}()">${W.map((w, k) => ({ w, k })).filter(({ w }) => addD(w.ini, 6) >= L.min).map(({ w, k }) => `<option value="${k}" ${k === PER.sem ? 'selected' : ''}>${w.w} · ${fdate(w.ini)}${k === W.length - 1 ? ' (en curso)' : ''}</option>`).join('')}</select>`;
   else if (PER.modo === 'mes') ctl = `<select onchange="PER.mes=this.value;${fn}()">${meses3().map(m => `<option value="${m}" ${(PER.mes || L.max.slice(0, 7)) === m ? 'selected' : ''}>${mlabel(m)}${m === L.max.slice(0, 7) ? ' (en curso)' : ''}</option>`).join('')}</select>`;
   else if (PER.modo === 'dia') ctl = `<input type="date" min="${L.min}" max="${L.max}" value="${r.desde}" onchange="PER.desde=this.value;${fn}()">`;
   else ctl = `<input type="date" min="${L.min}" max="${L.max}" value="${r.desde}" onchange="PER.desde=this.value;${fn}()"> <span>a</span> <input type="date" min="${L.min}" max="${L.max}" value="${r.hasta}" onchange="PER.hasta=this.value;${fn}()">`;
   return `<div class="pbar" data-nocap><div class="seg">${modos.map(([k, n]) => `<button class="${PER.modo === k ? 'on' : ''}" onclick="PER.modo='${k}';${k === 'dia' ? "PER.desde=PER.desde||'" + L.max + "';" : ''}${fn}()">${n}</button>`).join('')}</div>${ctl}<span class="muted">${r.dias.length} día${r.dias.length > 1 ? 's' : ''} · ${fdate(r.desde)} al ${fdate(r.hasta)} (últimos 3 meses disponibles)</span></div>`;
+}
+
+/* ---------- árbol expandible: región > gerente > supervisor > tienda, con columnas numéricas ---------- */
+function arbol(items, cols, o = {}) {
+  const T = x => tienda(x.idpdv) || {}, N = cols.length, gc = `minmax(230px,1fr) repeat(${N},${o.cw || 92}px)`;
+  const niv = [['region', 'Sin región', '🗺️'], ['gerente', 'Sin gerente', '👔'], ['supervisor', 'Sin supervisor', '🧑‍💼']];
+  const vals = arr => cols.map(c => c.f(arr));
+  const celdas = arr => vals(arr).map((v, i) => `<span class="ar-v ${cols[i].cls || ''}">${v === 0 && cols[i].cero !== true ? '<i>·</i>' : (cols[i].fmt ? cols[i].fmt(v) : fmt(v))}</span>`).join('');
+  const ord = (a, b) => (b[1].reduce(a0 => a0, 0), 0);
+  function nodo(arr, nivel) {
+    if (nivel >= niv.length) { // tiendas
+      const g = new Map(); arr.forEach(x => { const k = T(x).nombre || ('IDPDV ' + x.idpdv); if (!g.has(k)) g.set(k, []); g.get(k).push(x); });
+      return [...g].sort((a, b) => cols[N - 1].f(b[1]) - cols[N - 1].f(a[1])).map(([k, v]) => `<div class="ar-row lf" style="grid-template-columns:${gc}"><span class="ar-t">🏬 ${esc(k)}</span>${celdas(v)}</div>`).join('');
+    }
+    const [campo, vacio, ic] = niv[nivel], g = new Map(); arr.forEach(x => { const k = T(x)[campo] || vacio; if (!g.has(k)) g.set(k, []); g.get(k).push(x); });
+    return [...g].sort((a, b) => cols[N - 1].f(b[1]) - cols[N - 1].f(a[1])).map(([k, v]) => `<details class="ar-n l${nivel}" ${o.abierto ? 'open' : ''}><summary class="ar-row" style="grid-template-columns:${gc}"><span class="ar-t"><i class="ar-c">▸</i>${ic} ${esc(k)}</span>${celdas(v)}</summary>${nodo(v, nivel + 1)}</details>`).join('');
+  }
+  const head = `<div class="ar-row ar-h" style="grid-template-columns:${gc}"><span class="ar-t">${esc(o.titulo || 'REGIÓN / GERENTE / SUPERVISOR / TIENDA')}</span>${cols.map(c => `<span class="ar-v">${c.h}</span>`).join('')}</div>`;
+  const tot = `<div class="ar-row ar-tt" style="grid-template-columns:${gc}"><span class="ar-t">Total general</span>${vals(items).map((v, i) => `<span class="ar-v">${cols[i].fmt ? cols[i].fmt(v) : fmt(v)}</span>`).join('')}</div>`;
+  return `<div class="arbol">${head}${items.length ? nodo(items, 0) : '<div class="empty-in">Sin datos</div>'}${tot}</div>`;
 }
 
 /* >>> 03_reportes.js */
@@ -307,6 +348,11 @@ Real.movs = async function () {
 async function cargarMovs(force) { if (MV.loaded && !force) return; const d = await API.movs(); MV.ing = d.ing; MV.baj = d.baj; MV.loaded = true; }
 function hcProm(r) { // promedio de promotores con check por semana dentro del periodo (estructura filtrada)
   const sa = R.meta.semanas_anio, xs = xsF(); let tot = [], n = 0;
+  sa.forEach((s, i) => { const fin = addD(s.ini, 6); if (fin < r.desde || s.ini > r.hasta) return; tot.push(xs.reduce((a, x) => a + (x.hc[i] || 0), 0)); });
+  return tot.length ? tot.reduce((a, b) => a + b, 0) / tot.length : 0;
+}
+function hcPromX(r, pred) {
+  const sa = R.meta.semanas_anio, xs = R.T.filter(x => okT(x.t) && pred(x.t)), tot = [];
   sa.forEach((s, i) => { const fin = addD(s.ini, 6); if (fin < r.desde || s.ini > r.hasta) return; tot.push(xs.reduce((a, x) => a + (x.hc[i] || 0), 0)); });
   return tot.length ? tot.reduce((a, b) => a + b, 0) / tot.length : 0;
 }
@@ -365,8 +411,10 @@ async function vResumen() {
     h += `<div class="grid g2"><div class="card"><h3>🏪 Cobertura por cadena</h3><p class="note">% Cobertura PDV (barra) y % Asistencia Promotor.</p>${cadRows.map(q => `<div class="cadena-row">${logoCad(q.c)}<div class="cadena-track"><i style="width:${q.p || 0}%;background:${colorPct(q.p)}"></i></div><b class="cadena-val" style="color:${colorPct(q.p)}">${f1(q.p)}%</b><span class="muted" style="min-width:96px;text-align:right">asist. ${f1(q.a)}%</span></div>`).join('')}</div>
       <div class="card"><h3>🚦 Estatus de tiendas (últimos 2 días)</h3><p class="note">Cubierta: check los 2 días · Descubierta: falta 1 día · Vacante: 2 días sin check.</p>${donut(['Cubierta', 'Descubierta', 'Vacante'].map((n, k) => ({ n, v: ce[n], c: COBC[k] })), { sub: 'tiendas' })}</div></div>`;
     const labs = sems.map(w => w.w.slice(3));
-    h += `<div class="grid g2"><div class="card"><h3>📈 Comparativo semanal</h3><p class="note">Las 4 últimas semanas del periodo filtrado.</p>${legend([['% Cobertura PDV', C.gr], ['% Asistencia Promotor', C.bl], ['% Checks vs cuota', C.or]])}${chart(labs, [{ n: '% Cobertura PDV', c: C.gr, v: S4.map(x => x.pctP) }, { n: '% Asistencia', c: C.bl, v: S4.map(x => x.pctM) }, { n: '% Checks vs cuota', c: C.or, v: S4.map(x => x.pctC) }], { pct: 1, max: 100, h: 240, vals: 1 })}</div>
-      <div class="card"><h3>🔄 Ingresos y bajas por semana</h3><p class="note">Rotación del periodo: <b>${rot.rot == null ? '—' : f1(rot.rot) + '%'}</b> (${rot.baj} bajas ÷ ${fmt(rot.hc)} HC promedio).</p>${legend([['Ingresos', C.gr], ['Bajas', C.rd]])}${chart(labs, [{ n: 'Ingresos', c: C.gr, v: sems.map(w => MV.ing.filter(x => x.f >= w.desde && x.f <= w.hasta && okI(x.idpdv)).length) }, { n: 'Bajas', c: C.rd, v: sems.map(w => MV.baj.filter(x => x.f >= w.desde && x.f <= w.hasta && okI(x.idpdv)).length) }], { bars: 1, vals: 1, h: 240 })}</div></div>`;
+    const est4 = sems.map(w => { const e = { Cubierta: 0, Descubierta: 0, Vacante: 0 }; xs.filter(x => (x.t.posiciones || 0) > 0).forEach(x => e[estatusTienda(x, w.dias).cob]++); return e; });
+    const rotS = sems.map(w => { const hcS = hcPromX({ desde: w.desde, hasta: w.hasta }, () => true); const b = MV.baj.filter(x => x.f >= w.desde && x.f <= w.hasta && okI(x.idpdv)).length; return hcS ? b / hcS * 100 : null; });
+    h += `<div class="grid g2"><div class="card"><h3>📈 Tiendas cubiertas, descubiertas y vacantes · últimas 4 semanas</h3><p class="note">Estatus de cada tienda al cierre de la semana (últimos 2 días con datos). La línea es el % de tiendas cubiertas.</p>${legend([['Cubiertas', C.gr], ['Descubiertas', C.am], ['Vacantes', C.rd], ['% cubiertas', C.dk]])}${chart(labs, [{ n: 'Cubiertas', c: C.gr, v: est4.map(e => e.Cubierta) }, { n: 'Descubiertas', c: C.am, v: est4.map(e => e.Descubierta) }, { n: 'Vacantes', c: C.rd, v: est4.map(e => e.Vacante) }], { bars: 1, stack: 1, vals: 1, h: 300, lines2: [{ n: '% cubiertas', c: C.dk, v: est4.map(e => pn(e.Cubierta, e.Cubierta + e.Descubierta + e.Vacante)), trend: 0 }], y2: { pct: 1, max: 100 } })}</div>
+      <div class="card"><h3>🔄 Ingresos, bajas y rotación · últimas 4 semanas</h3><p class="note">Rotación del periodo: <b>${rot.rot == null ? '—' : f1(rot.rot) + '%'}</b> (${rot.baj} bajas ÷ ${fmt(rot.hc)} HC promedio). Línea: rotación semanal con su tendencia.</p>${legend([['Ingresos', C.gr], ['Bajas', C.rd], ['Rotación %', C.am], ['Tendencia', C.od]])}${chart(labs, [{ n: 'Ingresos', c: C.gr, v: sems.map(w => MV.ing.filter(x => x.f >= w.desde && x.f <= w.hasta && okI(x.idpdv)).length) }, { n: 'Bajas', c: C.rd, v: sems.map(w => MV.baj.filter(x => x.f >= w.desde && x.f <= w.hasta && okI(x.idpdv)).length) }], { bars: 1, vals: 1, h: 300, lines2: [{ n: 'Rotación %', c: C.am, v: rotS, trend: 1 }], y2: { pct: 1 } })}</div></div>`;
     h += sect('Tiendas: medición de checks, asistencia y cobertura', '🧾') + `<p class="note">Periodo ${fdate(r.desde)} – ${fdate(r.hasta)}. Mueve la tabla a los lados o hacia abajo: encabezados e IDPDV/tienda se quedan fijos.</p>`;
     h += `<div class="tools" data-nocap><span>Estatus cobertura:</span><select onchange="R.estC=this.value;vResumen()"><option value="">Todos</option>${['Cubierta', 'Descubierta', 'Vacante'].map(e => `<option ${R.estC === e ? 'selected' : ''}>${e} (${ce[e]})</option>`).join('')}</select><span>Estatus asistencia:</span><select onchange="R.estA=this.value;vResumen()"><option value="">Todos</option>${['Cubierta', 'Posc Adic', 'Posc Desc', 'Descubierta', 'Posc Faltante', 'Vacante'].map(e => `<option ${R.estA === e ? 'selected' : ''}>${e}</option>`).join('')}</select></div>`;
     const rows = st.filter(z => (!R.estC || R.estC.startsWith(z.s.cob + ' (') || R.estC === z.s.cob) && (!R.estA || R.estA === z.s.asi)).map(({ x, s }) => ({ ...x, s, m: medTienda(x, dias), pe: penActual(x) }));
@@ -388,103 +436,101 @@ const colorPct = p => p == null ? C.gy : p >= 90 ? C.gr : p >= 75 ? C.am : C.rd;
 
 /* ====================================================================== 2 · PENALIZACIÓN ====================================================================== */
 const penActual = x => (x.pen || []).find(p => p.act) || (x.pen || []).slice(-1)[0] || null;
-const UE = { 'Cumple Original': '✅ Check completo (≥ 7 h)', 'Abierto': '🟦 Check abierto (en curso)' };
-function racha(p) { return p.act ? p.ra : p.mx; }
-function nivelPen(p) { // 5+ rojo · 4 amarillo · 3 verde (aún con margen) · menos de 3, sin alerta
-  const d = racha(p); if (p.e === 2 || d >= 5) return 5; if (d === 4) return 4; if (d === 3) return 3; return 0;
+/* Racha = días seguidos sin cobertura DENTRO del mes. Hoy todavía se puede salvar: el día en juego (hoy) no cuenta como perdido hasta que pasa.
+   Día 3 / 4 / 5 = el día de la racha en el que estamos hoy (racha confirmada hasta ayer + hoy). Penalizada = 5 o más días ya perdidos (sin contar hoy). */
+const HOYE = { 'C': '✅ Check cumple', 'A': '🔵 Check abierto', 'E': '🟠 Check con error', '0': '🔴 Sin check' };
+const periodoIni = (ini, fin) => `${fdate(ini)} al ${fdate(fin)}`;
+function rachasConfirmadas(p, act) { // rachas del mes con sus días ya perdidos (sin contar hoy)
+  return (p.rs || []).map(q => { const enCurso = act && q[2] >= HOY; const conf = q[0] - (enCurso ? 1 : 0); return { dias: conf, ini: q[1], fin: enCurso ? addD(HOY, -1) : q[2], enCurso }; }).filter(q => q.dias >= 1);
 }
-function periodoRacha(p) { if (p.act) { const fin = addD(HOY, -1), ini = addD(HOY, -p.ra); return `${fdate(ini)} al ${fdate(fin)}`; } return p.pm || '—'; }
-function estHoy(p) { return !p.act ? '—' : p.hoy === 'C' ? '🟢 Cubierta hoy' : p.hoy === 'A' ? '🔵 Check abierto' : '🔴 Sin check hoy'; }
-const NIVC = { 5: { k: 'r', ic: '🔴', t: 'Día 5 o más', sub: 'Penalizable · cubrir hoy sin falta' }, 4: { k: 'a', ic: '🟡', t: 'Día 4', sub: 'A un día de penalizar · enviar a cubrir hoy' }, 3: { k: 'g', ic: '🟢', t: 'Día 3', sub: 'Todavía hay margen · programar cobertura' } };
 async function vPenal() {
   await conReporte('Penalización', 'puno', async () => {
-    const meses = [...new Set(R.T.flatMap(x => (x.pen || []).map(p => p.m)))].sort(); if (!R.mes || !meses.includes(R.mes)) R.mes = meses[meses.length - 1];
-    const sel = R.T.filter(x => okT(x.t) && (!R.solo || x.t.cadena === 'Coppel')), act = R.mes === HOY.slice(0, 7);
+    const meses = meses3(); if (!R.mes || !meses.includes(R.mes)) R.mes = meses[meses.length - 1];
+    const act = R.mes === HOY.slice(0, 7), sel = R.T.filter(x => okT(x.t) && (!R.solo || x.t.cadena === 'Coppel'));
     const dePen = sel.map(x => ({ ...x, p: (x.pen || []).find(p => p.m === R.mes) })).filter(x => x.p);
-    const conN = dePen.map(x => ({ ...x, n: nivelPen(x.p) }));
-    const cnt = { 5: conN.filter(x => x.n === 5), 4: conN.filter(x => x.n === 4), 3: conN.filter(x => x.n === 3) };
-    const pen = dePen.filter(x => x.p.e === 2).length;
-    let h = cab('Penalización por falta de cobertura', 'Una tienda se penaliza con 5 o más días seguidos sin cobertura en el mes. Cuenta como cobertura un check dentro de rango con 420 minutos en tienda (300 los domingos con horario diferenciado); el check de un supervisor también rompe la racha.', 'puno') + barraFiltros('vPenal');
+    const enJuego = act ? dePen.filter(x => x.p.act && x.p.hoy !== 'C') : [];
+    const c5 = enJuego.filter(x => x.p.ra === 4), c4 = enJuego.filter(x => x.p.ra === 3), c3 = enJuego.filter(x => x.p.ra === 2);
+    const todasR = []; dePen.forEach(x => rachasConfirmadas(x.p, act).forEach(q => todasR.push({ ...x, ...q })));
+    const rach3 = todasR.filter(q => q.dias >= 3).sort((a, b) => b.dias - a.dias), pen = todasR.filter(q => q.dias >= 5).sort((a, b) => b.dias - a.dias);
+    const penT = new Set(pen.map(q => q.id)).size;
+    let h = cab('Penalización por falta de cobertura', 'Una tienda se penaliza con 5 días seguidos sin cobertura dentro del mes. Cuenta como cobertura un check dentro de rango con 420 minutos en tienda (300 los domingos con horario diferenciado); el check de un supervisor también rompe la racha. El día 5 todavía se puede salvar si hoy se cubre.', 'puno') + barraFiltros('vPenal');
     h += `<div class="tools"><span>Mes:</span><select onchange="R.mes=this.value;vPenal()">${meses.map(m => `<option value="${m}" ${m === R.mes ? 'selected' : ''}>${mlabel(m)}${m === HOY.slice(0, 7) ? ' (en curso)' : ''}</option>`).join('')}</select><button class="chip ${R.solo ? 'on' : ''}" onclick="R.solo=!R.solo;vPenal()">⭐ Solo Coppel (prioridad)</button><span class="muted">${fmt(dePen.length)} tiendas en el mes</span></div>`;
-    h += `<div class="kpis">${kp('Penalizadas ' + mlabel(R.mes), fmt(pen), pc1(pen, dePen.length) + ' de las tiendas', pen ? C.rd : C.gr, null, '🚫')}${kp('Día 5 o más', fmt(cnt[5].length), 'urgente', cnt[5].length ? C.rd : C.gr, null, '🔴')}${kp('Día 4', fmt(cnt[4].length), 'enviar hoy', cnt[4].length ? C.am : C.gr, null, '🟡')}${kp('Día 3', fmt(cnt[3].length), 'programar', C.gr, null, '🟢')}${kp('Cubiertas', fmt(dePen.length - cnt[5].length - cnt[4].length - cnt[3].length), 'sin alerta', C.gr, null, '✅')}</div>`;
-    // gráfica: penalizados por mes comparativo por gerencia RR.HH. (todo el periodo disponible)
-    const zonas = [...new Set(R.T.filter(x => okT(x.t) && (!R.solo || x.t.cadena === 'Coppel')).map(x => x.t.zona_rrhh).filter(Boolean))].sort(), zc = [C.or, C.bl, C.pu, C.te, C.gr];
-    const porMes = meses.map(m => zonas.map(z => R.T.filter(x => okT(x.t) && (!R.solo || x.t.cadena === 'Coppel') && x.t.zona_rrhh === z && (x.pen || []).some(p => p.m === m && p.e === 2)).length));
-    h += `<div class="card"><h3>📊 Tiendas penalizadas por mes · comparativo por gerencia RR.HH.</h3><p class="note">Todo el periodo disponible (no depende del mes elegido).</p>${legend(zonas.map((z, k) => [z.split(' ').slice(0, 3).join(' '), zc[k % 5]]))}${chart(meses.map(mlabel), zonas.map((z, k) => ({ n: z, c: zc[k % 5], v: porMes.map(q => q[k]) })), { bars: 1, stack: 1, vals: 1, h: 250, ticks: 6 })}</div>`;
-    // tarjetas de alerta expandibles
-    const fl = R.rach;
-    h += sect('Alertas de cobertura para enviar a cubrir', '🚨') + `<p class="note">Cada día RH comparte esta imagen: tiendas con racha de 3 a 5 días. Abre una tarjeta para ver sus tiendas; usa 📸 para capturar la imagen.</p>`;
-    h += `<div class="tools" data-nocap>${[['todas', 'Todas (3 a 5+)'], ['5', '🔴 Día 5+'], ['4', '🟡 Día 4'], ['3', '🟢 Día 3']].map(([k, n]) => `<button class="chip ${fl === k ? 'on' : ''}" onclick="R.rach='${k}';vPenal()">${n}</button>`).join('')}<button class="btn sm" style="margin-left:auto" onclick="capturaDescargar($('alertas-wrap'),'Alertas de cobertura · ${mlabel(R.mes)}',subFiltros(),'alertas_cobertura')">📸 Imagen de todas las alertas</button><button class="btn sm" onclick="capturaCopiar($('alertas-wrap'),'Alertas de cobertura · ${mlabel(R.mes)}',subFiltros())">📋 Copiar</button></div>`;
-    h += `<div id="alertas-wrap" class="alertas2">${[5, 4, 3].filter(n => fl === 'todas' || fl === String(n)).map(n => tarjetaAlerta(n, cnt[n], act)).join('')}</div>`;
-    const rach = []; dePen.forEach(x => (x.p.rs || []).forEach(q => rach.push({ ...x, dias: q[0], ini: q[1], fin: q[2] })));
-    rach.sort((a, b) => b.dias - a.dias);
-    h += `<details class="alc neutro"><summary><span class="alc-n">${rach.filter(q => q.dias >= 5).length}</span><div><b>📜 Mayores rachas del mes</b><small>${rach.length} rachas de 2 o más días con su periodo · ${rach.filter(q => q.dias >= 5).length} penalizables</small></div><i>▾</i></summary><div class="alc-body">${tablaRachas(rach.slice(0, 80))}</div></details>`;
+    h += `<div class="kpis">${act ? kp('Día 5 · último día', fmt(c5.length), 'si hoy no se cubre, se penaliza', c5.length ? C.rd : C.gr, null, '🔴') + kp('Día 4', fmt(c4.length), 'enviar a cubrir hoy', c4.length ? C.am : C.gr, null, '🟡') + kp('Día 3', fmt(c3.length), 'programar cobertura', C.gr, null, '🟢') : ''}${kp('Penalizadas ' + mlabel(R.mes), fmt(penT), `${fmt(pen.length)} racha${pen.length === 1 ? '' : 's'} de 5 o más días`, penT ? C.rd : C.gr, null, '🚫')}${kp('Rachas de 3+ días', fmt(rach3.length), 'en el mes', C.am, null, '📜')}</div>`;
+    h += `<div class="tools" data-nocap><button class="btn sm" onclick="capturaDescargar($('alertas-wrap'),'Alertas de cobertura · ${fdate(HOY)}',subFiltros(),'alertas_cobertura')">📸 Imagen de todas las alertas</button><button class="btn sm" onclick="capturaCopiar($('alertas-wrap'),'Alertas de cobertura · ${fdate(HOY)}',subFiltros())">📋 Copiar imagen</button><span class="muted">Cada día RH comparte esta imagen. Abre una tarjeta para ver sus tiendas; 📸 captura solo esa tarjeta.</span></div>`;
+    h += `<div id="alertas-wrap" class="alertas2">`;
+    if (act) h += tarjetaPen({ k: 'r', ic: '🔴', t: 'Día 5 · último día para salvar', sub: 'Hoy es el 5.º día sin cobertura: si no se cubre hoy, queda penalizada', rows: c5.map(x => ({ ...x, per: periodoIni(addD(HOY, -4), addD(HOY, -1)) })), racha: false, abrir: true }) +
+      tarjetaPen({ k: 'a', ic: '🟡', t: 'Día 4', sub: 'Hoy es el 4.º día sin cobertura · enviar a cubrir hoy', rows: c4.map(x => ({ ...x, per: periodoIni(addD(HOY, -3), addD(HOY, -1)) })), racha: false }) +
+      tarjetaPen({ k: 'g', ic: '🟢', t: 'Día 3', sub: 'Hoy es el 3.er día sin cobertura · todavía hay margen', rows: c3.map(x => ({ ...x, per: periodoIni(addD(HOY, -2), addD(HOY, -1)) })), racha: false });
+    h += tarjetaPen({ k: 'neutro', ic: '📜', t: 'Mayores rachas del mes', sub: 'Rachas de 3 o más días consecutivos en el mes (cerradas o en curso)', rows: rach3.map(q => ({ ...q, per: periodoIni(q.ini, q.fin) + (q.enCurso ? ' · en curso' : '') })), racha: true }) +
+      tarjetaPen({ k: 'r', ic: '🚫', t: 'Penalizadas', sub: 'Rachas que ya cumplieron 5 o más días sin cobertura', rows: pen.map(q => ({ ...q, per: periodoIni(q.ini, q.fin) + (q.enCurso ? ' · en curso' : '') })), racha: true }) + '</div>';
     $('content').innerHTML = h; drawAll();
   });
 }
-function tarjetaAlerta(n, rows, act) {
-  const m = NIVC[n]; const id = 'al' + n; const lista = rows.slice().sort((a, b) => (b.t.cadena === 'Coppel') - (a.t.cadena === 'Coppel') || racha(b.p) - racha(a.p));
-  const body = lista.length ? `<div class="tw tw-in"><table class="dt st"><thead><tr><th class="fx" style="left:0;min-width:84px">IDPDV</th><th class="fx t" style="left:84px;min-width:220px">Tienda</th><th>Racha</th><th class="t">Periodo sin checks</th><th>Último check actual</th><th class="t">Estatus último check</th><th class="t">Hoy</th><th class="t">Región</th><th class="t">Gerente</th><th class="t">Supervisor</th></tr></thead><tbody>${lista.map(x => `<tr><td class="fx" style="left:0;min-width:84px"><b>${x.id}</b></td><td class="fx t" style="left:84px;min-width:220px"><b>${esc(x.t.nombre)}</b><br><small class="muted">${esc(x.t.cadena)} · ${esc(x.t.estado)}</small></td><td><span class="dchip ${m.k}">${racha(x.p)} d</span></td><td class="t">${periodoRacha(x.p)}</td><td>${fdate(x.p.uf || x.p.ul)}</td><td class="t">${UE[x.p.ue] || (x.p.ul ? '⚠️ Último check válido ' + fdate(x.p.ul) : '—')}</td><td class="t">${estHoy(x.p)}</td><td class="t">${esc(x.t.region)}</td><td class="t">${esc(x.t.gerente)}</td><td class="t">${esc(x.t.supervisor)}</td></tr>`).join('')}</tbody></table></div>` : `<div class="empty-in">Sin tiendas en este nivel 🎉</div>`;
-  return `<details class="alc ${m.k}" ${n === 5 && lista.length ? 'open' : ''}><summary><span class="alc-n">${lista.length}</span><div><b>${m.ic} ${m.t}</b><small>${m.sub}</small></div><button class="btn sm cam" data-nocap onclick="event.preventDefault();event.stopPropagation();capturaDescargar(this.closest('details'),'${m.ic} Alerta ${m.t} · ${mlabel(R.mes)}',subFiltros(),'alerta_dia_${n}')">📸</button><i>▾</i></summary><div class="alc-body">${body}</div></details>`;
-}
-function tablaRachas(rows) {
-  return `<div class="tw tw-in"><table class="dt st"><thead><tr><th class="fx" style="left:0;min-width:84px">IDPDV</th><th class="fx t" style="left:84px;min-width:220px">Tienda</th><th>Días sin cobertura</th><th>Inicio</th><th>Fin</th><th class="t">Penalizable</th><th class="t">Supervisor</th></tr></thead><tbody>${rows.map(q => `<tr><td class="fx" style="left:0;min-width:84px"><b>${q.id}</b></td><td class="fx t" style="left:84px;min-width:220px">${esc(q.t.nombre)}</td><td><span class="dchip ${q.dias >= 5 ? 'r' : q.dias >= 4 ? 'a' : 'g'}">${q.dias} d</span></td><td>${fdate(q.ini)}</td><td>${fdate(q.fin)}</td><td class="t">${q.dias >= 5 ? pillx('🔴 Sí', 'r') : pillx('No', 'x')}</td><td class="t">${esc(q.t.supervisor)}</td></tr>`).join('')}</tbody></table></div>`;
+function tarjetaPen(o) {
+  const lista = o.rows.slice().sort((a, b) => (b.t.cadena === 'Coppel') - (a.t.cadena === 'Coppel') || (b.dias || 0) - (a.dias || 0));
+  const titulo = o.t.replace(/'/g, '');
+  const body = lista.length ? `<div class="tw tw-in"><table class="dt st"><thead><tr><th class="fx" style="left:0;min-width:92px">IDPDV</th><th class="fx t" style="left:92px;min-width:250px">Tienda</th>${o.racha ? '<th>Racha</th>' : ''}<th class="t">Periodo sin checks</th>${o.racha ? '' : '<th class="t">Hoy</th>'}<th class="t">Región</th><th class="t">Gerente</th><th class="t">Supervisor</th></tr></thead><tbody>${lista.map(x => `<tr><td class="fx" style="left:0;min-width:92px"><b>${x.id}</b></td><td class="fx t" style="left:92px;min-width:250px;max-width:250px"><div class="cut" title="${esc(x.t.nombre)}"><b>${esc(x.t.nombre)}</b></div><small class="muted">${esc(x.t.cadena)} · ${esc(x.t.estado)}</small></td>${o.racha ? `<td><span class="dchip ${x.dias >= 5 ? 'r' : x.dias >= 4 ? 'a' : 'g'}">${x.dias} d</span></td>` : ''}<td class="t">${x.per}</td>${o.racha ? '' : `<td class="t">${HOYE[x.p.hoy] || '—'}</td>`}<td class="t">${esc(x.t.region)}</td><td class="t">${esc(x.t.gerente)}</td><td class="t">${esc(x.t.supervisor)}</td></tr>`).join('')}</tbody></table></div>` : `<div class="empty-in">Sin tiendas en esta categoría 🎉</div>`;
+  return `<details class="alc ${o.k}" ${o.abrir && lista.length ? 'open' : ''}><summary><span class="alc-n">${lista.length}</span><div><b>${o.ic} ${esc(o.t)}</b><small>${esc(o.sub)}</small></div><button class="btn sm cam" data-nocap onclick="event.preventDefault();event.stopPropagation();capturaDescargar(this.closest('details'),'${o.ic} ${titulo} · ${fdate(HOY)}',subFiltros(),'alerta_${o.k}')">📸</button><i>▾</i></summary><div class="alc-body">${body}</div></details>`;
 }
 
 /* ====================================================================== 3 · DETALLE DE CHECKS ====================================================================== */
-const CKS = { cache: {}, vista: null, just: '' };
+const CKS = { cache: {}, vista: null, just: '', est: '', fin: '', jus: '' };
 const ERRN = { 'Cumple': 'Cumple', 'Check In Fuera Ventana': 'Entrada fuera de horario', 'Check Out Fuera Ventana': 'Salida fuera de horario', 'Error Comida': 'Error de comida', 'Tiempo Incompleto': 'Tiempo incompleto', 'Check In Fuera Rango': 'Entrada fuera de rango', 'Check Out Fuera Rango': 'Salida fuera de rango', 'No Check Salida': 'Sin check de salida', 'Equipo Duplicado': 'Equipo duplicado', 'Abierto': 'Abierto (hoy)' };
 const ERRI = { 'Cumple': '✅', 'Check In Fuera Ventana': '🕘', 'Check Out Fuera Ventana': '🕕', 'Error Comida': '🍽️', 'Tiempo Incompleto': '⏱️', 'Check In Fuera Rango': '📍', 'Check Out Fuera Rango': '📍', 'No Check Salida': '🚪', 'Equipo Duplicado': '📱', 'Abierto': '🟦' };
 const OKF = ['Cumple', 'Cumple Productividad', 'Cumple Telefonica'];
 const VALC = { 'Cumple': 'g', 'Cumple Productividad': 'b', 'Cumple Telefonica': 'b', 'No Cumple': 'r' };
-const NOJUST = ['Check In Fuera Rango', 'Check Out Fuera Rango', 'Equipo Duplicado'];   // fuera de rango / duplicado: ventas no lo justifican
-async function checksRango(d, h) { // se piden por semana y se guardan
-  const W = ventana(), blocks = W.filter(w => addD(w.ini, 6) >= d && w.ini <= h); const out = [];
-  for (const w of blocks) { if (!CKS.cache[w.ini]) { $('content').insertAdjacentHTML('afterbegin', ''); CKS.cache[w.ini] = await API.checks(w.ini, addD(w.ini, 6)); } out.push(...CKS.cache[w.ini]); }
+const NOJUST = ['Check In Fuera Rango', 'Check Out Fuera Rango', 'Equipo Duplicado', 'No Check Salida'];   // la venta no los justifica (regla del modelo): hay que enviarlos a otra tienda o corregir
+async function checksRango(d, h) { // se piden por semana (con reintentos) y se guardan en memoria
+  const W = ventana(), blocks = W.filter(w => addD(w.ini, 6) >= d && w.ini <= h), out = [];
+  for (const w of blocks) { if (!CKS.cache[w.ini]) CKS.cache[w.ini] = await API.checks(w.ini, addD(w.ini, 6)); out.push(...CKS.cache[w.ini]); }
   return out.filter(r => r.fecha >= d && r.fecha <= h);
 }
 const esErr = r => r.estatus_check !== 'Cumple' && r.estatus_check !== 'Abierto' && r.estatus_final !== 'Otro Check';
 const justif = r => r.estatus_final === 'Cumple Productividad' || r.estatus_final === 'Cumple Telefonica';
+function justTxt(r) { if (r.estatus_check === 'Cumple' || r.estatus_check === 'Abierto' || NOJUST.includes(r.estatus_check)) return 'No aplica'; return justif(r) ? 'Con venta' : 'Sin venta'; }
+const JUSTP = { 'No aplica': ['x', '➖ No aplica'], 'Con venta': ['b', '💸 Con venta'], 'Sin venta': ['r', '🔴 Sin venta'] };
 async function vChecks() {
   await conReporte('Detalle de checks', 'sim', async () => {
-    const r = perRango(); $('content').innerHTML = cab('Detalle de checks', 'Cargando checks…', 'sim');
-    const rows = (await checksRango(r.desde, r.hasta)).filter(x => okI(x.idpdv));
+    const r = perRango(); $('content').innerHTML = cab('Detalle de checks', 'Cargando checks… (los periodos largos tardan unos segundos)', 'sim');
+    const vistaSem = CKS.vista ? CKS.vista === 'sem' : r.dias.length > 14, ws4 = semanasUlt4(r), desdeCarga = vistaSem && ws4.length ? (ws4[0].desde < r.desde ? ws4[0].desde : r.desde) : r.desde;
+    const todos = (await checksRango(desdeCarga, r.hasta)).filter(x => okI(x.idpdv)), rows = todos.filter(x => x.fecha >= r.desde && x.fecha <= r.hasta);
     const prim = rows.filter(x => x.estatus_final !== 'Otro Check' && x.estatus_check !== 'Abierto'), ok = prim.filter(x => OKF.includes(x.estatus_final));
     const prom = new Set(prim.map(x => x.usuario)).size, prod = prim.filter(x => x.estatus_final === 'Cumple Productividad').length, vtas = prim.reduce((a, x) => a + x.registros, 0);
-    const errores = prim.filter(esErr), sinVta = errores.filter(x => !justif(x)).length, conJ = errores.filter(justif).length;
+    const errores = prim.filter(esErr), sinVta = errores.filter(x => justTxt(x) === 'Sin venta').length, conJ = errores.filter(x => justTxt(x) === 'Con venta').length, noAp = errores.filter(x => justTxt(x) === 'No aplica').length;
     const mix = {}; prim.forEach(x => mix[x.estatus_check] = (mix[x.estatus_check] || 0) + 1);
-    const vistaSem = CKS.vista ? CKS.vista === 'sem' : r.dias.length > 14;
     let h = cab('Detalle de checks', 'Cada check de cada promotor con horarios, tiempos, rangos y resultado, y la venta registrada del día para confirmar la justificación por productividad.', 'sim') + barraFiltros('vChecks') + barraPeriodo('vChecks', { dia: true });
-    h += `<div class="kpis">${kp('Checks evaluados', fmt(prim.length), 'uno por promotor y día', null, null, '🧾')}${kp('Promotores con check', fmt(prom), fdate(r.desde) + ' – ' + fdate(r.hasta), null, null, '🧍')}${kp('Cumplen (regla de pago)', pc1(ok.length, prim.length), fmt(ok.length) + ' checks', colorPct(pn(ok.length, prim.length)), null, '✅')}${kp('Con error', fmt(errores.length), `${fmt(conJ)} justificados · ${fmt(sinVta)} sin justificar`, errores.length ? C.rd : C.gr, null, '⚠️')}${kp('Cumple por productividad', pc1(prod, prim.length), fmt(prod) + ' checks', C.pu, null, '💸')}${kp('Ventas registradas', fmt(vtas), 'en días con check', null, null, '🛒')}</div>`;
-    // gráfica: promotores que checaron bien / mal (por día o por semana) + línea
-    let labs, bien, mal, linea, tit;
-    if (vistaSem) { const ws = semanasUlt4(r); labs = ws.map(w => w.w.slice(3)); const g = ws.map(w => { const x = rows.filter(y => y.fecha >= w.desde && y.fecha <= w.hasta && y.estatus_final !== 'Otro Check' && y.estatus_check !== 'Abierto'); const us = {}; x.forEach(y => { us[y.usuario] = (us[y.usuario] || false) || !OKF.includes(y.estatus_final) ? true : false; }); return { b: new Set(x.filter(y => OKF.includes(y.estatus_final)).map(y => y.usuario)).size, m: new Set(x.filter(y => !OKF.includes(y.estatus_final)).map(y => y.usuario)).size, n: x.length, c: x.filter(y => OKF.includes(y.estatus_final)).length }; }); bien = g.map(q => q.b); mal = g.map(q => q.m); linea = g.map(q => pn(q.c, q.n)); tit = 'Vista semanal · últimas 4 semanas del periodo'; }
-    else { labs = r.dias.map(d => d.slice(8) + '/' + d.slice(5, 7)); const g = r.dias.map(d => { const x = prim.filter(y => y.fecha === d); return { b: new Set(x.filter(y => OKF.includes(y.estatus_final)).map(y => y.usuario)).size, m: new Set(x.filter(y => !OKF.includes(y.estatus_final)).map(y => y.usuario)).size }; }); bien = g.map(q => q.b); mal = g.map(q => q.m); linea = g.map(q => q.b + q.m); tit = 'Vista diaria'; }
-    h += `<div class="grid g2"><div class="card"><div class="card-h"><h3>👥 Promotores que checaron bien y mal</h3><span class="seg sm" data-nocap><button class="${!vistaSem ? 'on' : ''}" onclick="CKS.vista='dia';vChecks()">Diaria</button><button class="${vistaSem ? 'on' : ''}" onclick="CKS.vista='sem';vChecks()">Semanal</button></span></div><p class="note">${tit}. ${vistaSem ? 'Línea: % de checks que cumplen.' : 'Línea: total de promotores con check.'}</p>${legend([['Checaron bien', C.gr], ['Checaron mal', C.rd], [vistaSem ? '% cumplen' : 'Total promotores', C.dk]])}${chart(labs, [{ n: 'Checaron bien', c: C.gr, v: bien }, { n: 'Checaron mal', c: C.rd, v: mal }], { bars: 1, stack: 1, vals: 1, h: 250, ticks: 16, lines: [{ n: vistaSem ? '% cumplen' : 'Total', c: C.dk, v: linea, dash: '' }], pct2: vistaSem, max: vistaSem ? undefined : undefined })}</div>
+    h += `<div class="kpis">${kp('Checks evaluados', fmt(prim.length), 'uno por promotor y día', null, null, '🧾')}${kp('Promotores con check', fmt(prom), fdate(r.desde) + ' – ' + fdate(r.hasta), null, null, '🧍')}${kp('Cumplen (regla de pago)', pc1(ok.length, prim.length), fmt(ok.length) + ' checks', colorPct(pn(ok.length, prim.length)), null, '✅')}${kp('Con error', fmt(errores.length), `${fmt(conJ)} con venta · ${fmt(sinVta)} sin venta · ${fmt(noAp)} no justificables`, errores.length ? C.rd : C.gr, null, '⚠️')}${kp('Cumple por productividad', pc1(prod, prim.length), fmt(prod) + ' checks', C.pu, null, '💸')}${kp('Ventas registradas', fmt(vtas), 'en días con check', null, null, '🛒')}</div>`;
+    // gráfica: promotores que checaron bien / mal
+    const cuenta = x => ({ b: new Set(x.filter(y => OKF.includes(y.estatus_final)).map(y => y.usuario)).size, m: new Set(x.filter(y => !OKF.includes(y.estatus_final)).map(y => y.usuario)).size, n: x.length, c: x.filter(y => OKF.includes(y.estatus_final)).length });
+    const base = x => x.estatus_final !== 'Otro Check' && x.estatus_check !== 'Abierto';
+    let labs, g, tit;
+    if (vistaSem) { labs = ws4.map(w => w.w.slice(3)); g = ws4.map(w => cuenta(todos.filter(y => y.fecha >= w.desde && y.fecha <= w.hasta && base(y)))); tit = 'Vista semanal · comparativo de las últimas 4 semanas'; }
+    else { labs = r.dias.map(d => d.slice(8) + '/' + d.slice(5, 7)); g = r.dias.map(d => cuenta(prim.filter(y => y.fecha === d))); tit = 'Vista diaria'; }
+    h += `<div class="grid g2"><div class="card"><div class="card-h"><h3>👥 Promotores que checaron bien y mal</h3><span class="seg sm" data-nocap><button class="${!vistaSem ? 'on' : ''}" onclick="CKS.vista='dia';vChecks()">Diaria</button><button class="${vistaSem ? 'on' : ''}" onclick="CKS.vista='sem';vChecks()">Semanal</button></span></div><p class="note">${tit}. Cantidad de promotores por resultado; la línea es el % de checks que cumplen, con su tendencia.</p>${legend([['Checaron bien', C.gr], ['Checaron mal', C.rd], ['% checks que cumplen', C.dk]])}${chart(labs, [{ n: 'Checaron bien', c: C.gr, v: g.map(q => q.b) }, { n: 'Checaron mal', c: C.rd, v: g.map(q => q.m) }], { bars: 1, stack: 1, vals: 1, h: 310, ticks: 16, lines2: [{ n: '% cumplen', c: C.dk, v: g.map(q => pn(q.c, q.n)), trend: 1 }], y2: { pct: 1, max: 100 } })}</div>
       <div class="card"><h3>🧩 Resultado del check</h3><p class="note">Antes de aplicar productividad o Telefónica.</p>${hbars(Object.entries(mix).sort((a, b) => b[1] - a[1]).map(([k, v]) => ({ n: (ERRI[k] || '') + ' ' + (ERRN[k] || k), v, c: k === 'Cumple' ? C.gr : NOJUST.includes(k) ? C.rd : C.am, s: pc1(v, prim.length) })), C.am)}</div></div>`;
-    // top / lista de promotores con error
-    const just = CKS.just; const errF = errores.filter(x => !just || (just === 'con' ? justif(x) : !justif(x)));
-    h += sect('Promotores con errores a corregir', '🛠️') + `<div class="tools" data-nocap>${[['', 'Todos los errores'], ['sin', '🔴 Sin justificación'], ['con', '🟢 Con justificación (venta)']].map(([k, n]) => `<button class="chip ${just === k ? 'on' : ''}" onclick="CKS.just='${k}';vChecks()">${n}</button>`).join('')}<span class="muted">${r.dias.length === 1 ? 'Día elegido: todos los promotores con error.' : 'Varios días: top 10 con más errores del periodo.'} Fuera de rango o equipo duplicado no se justifican con venta: hay que mandarlos a otra tienda.</span></div>`;
+    // errores a corregir
+    const just = CKS.just, errF = errores.filter(x => !just || (just === 'con' ? justTxt(x) === 'Con venta' : justTxt(x) !== 'Con venta'));
+    h += sect('Promotores con errores a corregir', '🛠️') + `<div class="tools" data-nocap>${[['', 'Todos los errores'], ['sin', '🔴 Sin justificación'], ['con', '🟢 Con justificación (venta)']].map(([k, n]) => `<button class="chip ${just === k ? 'on' : ''}" onclick="CKS.just='${k}';vChecks()">${n}</button>`).join('')}<span class="muted">${r.dias.length === 1 ? 'Día elegido: todos los promotores con error.' : 'Varios días: top 10 con más errores del periodo.'} Fuera de rango, equipo duplicado y sin check de salida no se justifican con venta.</span></div>`;
     TB = {};
     if (r.dias.length === 1) {
-      const lst = errF.slice().sort((a, b) => (tienda(a.idpdv) || {}).supervisor?.localeCompare((tienda(b.idpdv) || {}).supervisor || '') || a.nombre.localeCompare(b.nombre));
-      h += tbl('t-err', [{ h: 'Usuario', t: 1, v: q => q.usuario, w: 110 }, { h: 'Promotor', t: 1, v: q => q.nombre, w: 220, r: q => `<b>${esc(q.nombre)}</b>` }, { h: 'IDPDV', v: q => q.idpdv }, { h: 'Tienda', t: 1, v: q => (tienda(q.idpdv) || {}).nombre || '' }, { h: 'Resultado', t: 1, v: q => ERRN[q.estatus_check] || q.estatus_check, r: q => pillx((ERRI[q.estatus_check] || '') + ' ' + (ERRN[q.estatus_check] || q.estatus_check), NOJUST.includes(q.estatus_check) ? 'r' : 'a') },
-        { h: 'Ventas', v: q => q.registros, r: q => q.registros ? `<b>${q.registros}</b>` : '0' }, { h: 'Justificación', t: 1, v: q => justif(q) ? 'Con venta' : NOJUST.includes(q.estatus_check) ? 'No aplica' : 'Sin venta', r: q => justif(q) ? pillx('🟢 Con venta', 'g') : NOJUST.includes(q.estatus_check) ? pillx('⛔ No aplica: enviar a otra tienda', 'r') : pillx('🔴 Sin venta', 'r') }, { h: 'Supervisor', t: 1, v: q => (tienda(q.idpdv) || {}).supervisor }, { h: 'Gerente', t: 1, v: q => (tienda(q.idpdv) || {}).gerente }], lst, { fix: 2, search: 1, csv: 1, png: 1, file: 'promotores_con_error', titulo: 'Promotores con error · ' + fdate(r.desde), sort: -1, maxh: '60vh', lim: 500 });
+      const lst = errF.slice().sort((a, b) => ((tienda(a.idpdv) || {}).supervisor || '').localeCompare((tienda(b.idpdv) || {}).supervisor || '') || a.nombre.localeCompare(b.nombre));
+      h += tbl('t-err', [{ h: 'Usuario', t: 1, v: q => q.usuario, w: 112 }, { h: 'Promotor', t: 1, v: q => q.nombre, w: 230, r: q => `<b>${esc(q.nombre)}</b>` }, { h: 'IDPDV', v: q => q.idpdv }, { h: 'Tienda', t: 1, v: q => (tienda(q.idpdv) || {}).nombre || '' }, { h: 'Resultado', t: 1, v: q => ERRN[q.estatus_check] || q.estatus_check, r: q => pillx((ERRI[q.estatus_check] || '') + ' ' + (ERRN[q.estatus_check] || q.estatus_check), NOJUST.includes(q.estatus_check) ? 'r' : 'a') },
+        { h: 'Ventas', v: q => q.registros, r: q => q.registros ? `<b>${q.registros}</b>` : '0' }, { h: 'Justifica', t: 1, v: q => justTxt(q), r: q => { const p = JUSTP[justTxt(q)]; return pillx(p[1] + (justTxt(q) === 'No aplica' && NOJUST.includes(q.estatus_check) ? ': enviar a otra tienda' : ''), p[0]); } }, { h: 'Supervisor', t: 1, v: q => (tienda(q.idpdv) || {}).supervisor }, { h: 'Gerente', t: 1, v: q => (tienda(q.idpdv) || {}).gerente }], lst, { fix: 2, search: 1, csv: 1, png: 1, file: 'promotores_con_error', titulo: 'Promotores con error · ' + fdate(r.desde), sort: -1, maxh: '60vh', lim: 500 });
     } else {
-      const g = new Map(); errF.forEach(x => { if (!g.has(x.usuario)) g.set(x.usuario, []); g.get(x.usuario).push(x); });
+      const gm = new Map(); errF.forEach(x => { if (!gm.has(x.usuario)) gm.set(x.usuario, []); gm.get(x.usuario).push(x); });
       const dias_ = new Map(); prim.forEach(x => dias_.set(x.usuario, (dias_.get(x.usuario) || 0) + 1));
-      const top = [...g].map(([u, v]) => { const c = {}; v.forEach(x => c[x.estatus_check] = (c[x.estatus_check] || 0) + 1); return { u, n: v[0].nombre, e: v.length, d: dias_.get(u) || v.length, c, t: v[0].idpdv, j: v.filter(justif).length }; }).sort((a, b) => b.e - a.e || b.e / b.d - a.e / a.d).slice(0, 10);
-      h += top.length ? `<div class="toplist" id="top-err">${top.map((q, k) => `<div class="tp-row"><span class="tp-n ${k < 3 ? 'hot' : ''}">${k + 1}</span><div class="tp-m"><b>${esc(q.n)}</b><small>${esc(q.u)} · ${esc((tienda(q.t) || {}).nombre || '')} · ${esc((tienda(q.t) || {}).supervisor || '')}</small><div class="tp-s">${Object.entries(q.c).sort((a, b) => b[1] - a[1]).map(([k2, v]) => `<span class="pill ${NOJUST.includes(k2) ? 'r' : 'a'}">${ERRI[k2] || ''} ${v} ${esc((ERRN[k2] || k2).toLowerCase())}</span>`).join(' ')}${q.j ? ` <span class="pill g">💸 ${q.j} justificados</span>` : ''}</div></div><div class="tp-v"><b>${q.e}/${q.d}</b><small>errores / checks</small></div></div>`).join('')}</div><div class="tools" data-nocap><button class="btn sm" onclick="capturaDescargar($('top-err'),'Top 10 promotores con más errores',subFiltros(),'top_errores')">📸 Imagen</button><button class="btn sm" onclick="capturaCopiar($('top-err'),'Top 10 promotores con más errores',subFiltros())">📋 Copiar</button></div>` : `<div class="card empty"><img src="${img('triunfo')}" alt="">Sin errores en este periodo con ese filtro 🎉</div>`;
+      const top = [...gm].map(([u, v]) => { const c = {}; v.forEach(x => c[x.estatus_check] = (c[x.estatus_check] || 0) + 1); return { u, n: v[0].nombre, e: v.length, d: dias_.get(u) || v.length, c, t: v[0].idpdv, j: v.filter(x => justTxt(x) === 'Con venta').length }; }).sort((a, b) => b.e - a.e || b.e / b.d - a.e / a.d).slice(0, 10);
+      h += top.length ? `<div class="toplist" id="top-err">${top.map((q, k) => `<div class="tp-row"><span class="tp-n ${k < 3 ? 'hot' : ''}">${k + 1}</span><div class="tp-m"><b>${esc(q.n)}</b><small>${esc(q.u)} · ${esc((tienda(q.t) || {}).nombre || '')} · ${esc((tienda(q.t) || {}).supervisor || '')}</small><div class="tp-s">${Object.entries(q.c).sort((a, b) => b[1] - a[1]).map(([k2, v]) => `<span class="pill ${NOJUST.includes(k2) ? 'r' : 'a'}">${ERRI[k2] || ''} ${v} ${esc((ERRN[k2] || k2).toLowerCase())}</span>`).join(' ')}${q.j ? ` <span class="pill g">💸 ${q.j} con venta</span>` : ''}</div></div><div class="tp-v"><b>${q.e}/${q.d}</b><small>errores / checks</small></div></div>`).join('')}</div><div class="tools" data-nocap><button class="btn sm" onclick="capturaDescargar($('top-err'),'Top 10 promotores con más errores',subFiltros(),'top_errores')">📸 Imagen</button><button class="btn sm" onclick="capturaCopiar($('top-err'),'Top 10 promotores con más errores',subFiltros())">📋 Copiar</button></div>` : `<div class="card empty"><img src="${img('triunfo')}" alt="">Sin errores en este periodo con ese filtro 🎉</div>`;
     }
-    // tabla de detalle
-    const sel = rows.slice().sort((a, b) => b.fecha.localeCompare(a.fecha) || (a.hora_in || '').localeCompare(b.hora_in || ''));
-    h += sect('Detalle de cada check', '🧾') + `<div class="tools" data-nocap><select onchange="CKS.est=this.value;vChecks()"><option value="">Todos los resultados</option>${Object.keys(ERRN).map(k => `<option value="${k}" ${CKS.est === k ? 'selected' : ''}>${ERRI[k]} ${ERRN[k]}</option>`).join('')}</select></div>`;
-    h += tbl('t-checks', [{ h: 'Fecha', v: q => q.fecha, r: q => fdate(q.fecha), w: 82 }, { h: 'Usuario', t: 1, v: q => q.usuario, w: 108 }, { h: 'Promotor', t: 1, v: q => q.nombre, w: 190, r: q => `<b>${esc(q.nombre)}</b>` }, { h: 'IDPDV', v: q => q.idpdv }, { h: 'Tienda', t: 1, v: q => (tienda(q.idpdv) || {}).nombre || '' },
+    // detalle
+    const sel = rows.slice().sort((a, b) => b.fecha.localeCompare(a.fecha) || (a.hora_in || '').localeCompare(b.hora_in || '')).filter(q => (!CKS.est || q.estatus_check === CKS.est) && (!CKS.fin || q.estatus_final === CKS.fin) && (!CKS.jus || justTxt(q) === CKS.jus));
+    h += sect('Detalle de cada check', '🧾') + `<div class="tools" data-nocap><select onchange="CKS.est=this.value;vChecks()"><option value="">Todos los resultados</option>${Object.keys(ERRN).map(k => `<option value="${k}" ${CKS.est === k ? 'selected' : ''}>${ERRI[k]} ${ERRN[k]}</option>`).join('')}</select><select onchange="CKS.fin=this.value;vChecks()"><option value="">Todos los estatus finales</option>${['Cumple', 'Cumple Productividad', 'Cumple Telefonica', 'No Cumple', 'Otro Check'].map(k => `<option ${CKS.fin === k ? 'selected' : ''}>${k}</option>`).join('')}</select><select onchange="CKS.jus=this.value;vChecks()"><option value="">Toda justificación</option>${['Con venta', 'Sin venta', 'No aplica'].map(k => `<option ${CKS.jus === k ? 'selected' : ''}>${k}</option>`).join('')}</select></div>`;
+    h += tbl('t-checks', [{ h: 'Fecha', v: q => q.fecha, r: q => fdate(q.fecha), w: 82 }, { h: 'Usuario', t: 1, v: q => q.usuario, w: 112 }, { h: 'Promotor', t: 1, v: q => q.nombre, w: 220, r: q => `<b>${esc(q.nombre)}</b>` }, { h: 'IDPDV', v: q => q.idpdv }, { h: 'Tienda', t: 1, v: q => (tienda(q.idpdv) || {}).nombre || '' },
       { h: 'Entrada', v: q => q.hora_in, r: q => hh(q.hora_in) }, { h: 'Comida', v: q => q.hora_com_in, r: q => hh(q.hora_com_in) + ' – ' + hh(q.hora_com_out) }, { h: 'Salida', v: q => q.hora_out, r: q => hh(q.hora_out) }, { h: 'En tienda (min)', v: q => q.tiempo_ub, r: q => `<span class="${q.tiempo_ub < 420 ? 'cell-amber' : ''}">${fmt(q.tiempo_ub)}</span>` }, { h: 'Comida (min)', v: q => q.tiempo_com, r: q => f1(q.tiempo_com) },
       { h: 'Rango entrada', t: 1, v: q => q.rango_in, r: q => /fuera/i.test(q.rango_in || '') ? `<span class="cell-red">📍 ${esc(q.rango_in)}</span>` : esc(q.rango_in || '—') }, { h: 'Rango salida', t: 1, v: q => q.rango_out, r: q => /fuera/i.test(q.rango_out || '') ? `<span class="cell-red">📍 ${esc(q.rango_out)}</span>` : esc(q.rango_out || '—') },
       { h: 'Resultado', t: 1, v: q => ERRN[q.estatus_check] || q.estatus_check, r: q => pillx((ERRI[q.estatus_check] || '') + ' ' + (ERRN[q.estatus_check] || q.estatus_check), q.estatus_check === 'Cumple' ? 'g' : q.estatus_check === 'Abierto' ? 'b' : NOJUST.includes(q.estatus_check) ? 'r' : 'a') }, { h: 'Estatus final', t: 1, v: q => q.estatus_final, r: q => pillx(q.estatus_final, VALC[q.estatus_final] || 'x') },
-      { h: 'Ventas', v: q => q.registros, r: q => q.registros ? `<b>${q.registros}</b> <small class="muted">T${q.temm} P${q.porta} Pos${q.pospago} Pre${q.prepago}</small>` : '0' }, { h: 'Justifica', t: 1, v: q => justif(q) ? 'Con venta' : '', r: q => q.estatus_final === 'Cumple Productividad' ? pillx('💸 Con venta', 'b') : esErr(q) && !justif(q) ? pillx(NOJUST.includes(q.estatus_check) ? '⛔ No aplica' : '🔴 Sin venta', 'r') : '' },
-      { h: 'Supervisor', t: 1, v: q => (tienda(q.idpdv) || {}).supervisor }, { h: 'Gerente', t: 1, v: q => (tienda(q.idpdv) || {}).gerente }, { h: 'RR.HH.', t: 1, v: q => (tienda(q.idpdv) || {}).rrhh }].map(c => c), sel.filter(q => !CKS.est || q.estatus_check === CKS.est), { fix: 3, search: 1, csv: 1, png: 1, file: 'detalle_checks', titulo: 'Detalle de checks', sort: 0, dir: -1, maxh: '70vh', lim: 600 });
+      { h: 'Ventas', v: q => q.registros, r: q => q.registros ? `<b>${q.registros}</b> <small class="muted">T${q.temm} P${q.porta} Pos${q.pospago} Pre${q.prepago}</small>` : '0' }, { h: 'Justifica', t: 1, v: q => justTxt(q), r: q => { const p = JUSTP[justTxt(q)]; return pillx(p[1], p[0]); } },
+      { h: 'Supervisor', t: 1, v: q => (tienda(q.idpdv) || {}).supervisor }, { h: 'Gerente', t: 1, v: q => (tienda(q.idpdv) || {}).gerente }, { h: 'RR.HH.', t: 1, v: q => (tienda(q.idpdv) || {}).rrhh }], sel, { fix: 3, search: 1, csv: 1, png: 1, file: 'detalle_checks', titulo: 'Detalle de checks', sort: 0, dir: -1, maxh: '70vh', lim: 600 });
     $('content').innerHTML = h; drawAll();
   });
 }
@@ -504,25 +550,29 @@ function estadoVivo(h) {
   const d = h.ultimo_check ? diffD(HOY, h.ultimo_check) : null;
   if (d == null) return { e: 'Sin check', det: '' }; if (d <= 0) return { e: 'Activo', det: '' }; if (d === 1) return { e: 'Descanso / falta / error', det: '1 día sin check' }; if (d > 21) return { e: 'Baja', det: d + ' días sin check · sin baja registrada' }; return { e: 'Posible baja', det: d + ' días sin check' };
 }
+const HCF = { est: '', tipo: '', ant: '', emp: '' };
 async function vHC() {
   await conReporte('HC', 'mochila', async () => {
     if (!R.vivo) { try { S.vigentes = await API.vigentes(); } catch (e) { } R.vivo = true; }
     const rows = R.hc.filter(h => okI(h.ultimo_idpdv)).map(h => { const v = estadoVivo(h), u = R.uc[h.usuario] || {}, t = tienda(h.ultimo_idpdv), ant = h.fecha_alta ? diffD(HOY, h.fecha_alta) : null; return { ...h, v, u, t: t || {}, ant, tipo: tipoIngreso(h, ant), antL: antLabel(ant), alerta: S.alertas.find(a => a.usuario === h.usuario) }; });
     const vis = rows.filter(q => R.incBaja || q.v.e !== 'Baja'), cnt = {}; vis.forEach(q => cnt[q.v.e] = (cnt[q.v.e] || 0) + 1);
     const ausN = vis.filter(q => !['Activo', 'Descanso / falta / error', 'Posible baja', 'Baja', 'Sin check'].includes(q.v.e)), nuevos = vis.filter(q => q.tipo === 'Nuevo ingreso').length, adap = vis.filter(q => q.tipo === 'Adaptación').length;
+    const ests = [...new Set(vis.map(q => q.v.e))].sort(), emps = [...new Set(vis.map(q => q.empresa).filter(Boolean))].sort();
+    const tabla = vis.filter(q => (!HCF.est || q.v.e === HCF.est) && (!HCF.tipo || q.tipo === HCF.tipo) && (!HCF.ant || q.antL === HCF.ant) && (!HCF.emp || q.empresa === HCF.emp));
     let h = cab('HC · plantilla de promotoría', 'Promotores y cubre-descansos con su último check y estatus. El estatus se actualiza en vivo con las ausencias y bajas que RH captura en Posibles bajas.', 'mochila') + barraFiltros('vHC');
     h += `<div class="tools"><button class="chip ${R.incBaja ? 'on' : ''}" onclick="R.incBaja=!R.incBaja;vHC()">Incluir bajas</button><span class="muted">${fmt(vis.length)} promotores · publicado ${esc(R.meta.generado)}</span></div>`;
     h += `<div class="kpis">${kp('Plantilla', fmt(vis.filter(q => q.v.e !== 'Baja').length), 'sin bajas', null, null, '👥')}${kp('Activos hoy', fmt(cnt['Activo'] || 0), pc1(cnt['Activo'] || 0, vis.length), C.gr, null, '🟢')}${kp('Descanso / falta', fmt(cnt['Descanso / falta / error'] || 0), 'último check ayer', C.am, null, '🟠')}${kp('Posible baja', fmt(cnt['Posible baja'] || 0), '2 o más días sin check', C.rd, "ir('bandeja')", '🔴')}${kp('Con ausencia', fmt(ausN.length), 'vacaciones, incapacidad…', C.bl, "ir('vigentes')", '🏖️')}${kp('Nuevo ingreso', fmt(nuevos), 'menos de 2 semanas · arranque rápido', C.rd, null, '🆕')}${kp('Adaptación', fmt(adap), '2 a 4 semanas', C.am, null, '🌱')}</div>`;
     h += `<div class="grid g2"><div class="card"><h3>🚦 Estatus de la plantilla</h3>${donut(Object.entries(cnt).map(([k, v]) => ({ n: (ACTI[k] || '') + ' ' + k, v, c: k === 'Activo' ? C.gr : k === 'Posible baja' ? C.rd : k === 'Descanso / falta / error' ? C.am : k === 'Baja' ? C.gy : C.bl })), { sub: 'promotores' })}</div>
       <div class="card"><h3>⏳ Antigüedad</h3><p class="note">Menos de 2 semanas = nuevo ingreso: requiere arranque rápido (visita del supervisor, básicos y capacitación práctica).</p>${hbars(ANTB.map(b => ({ n: b[0], v: vis.filter(q => q.ant != null && q.ant >= b[1] && q.ant <= b[2]).length, c: b[3] })), C.pu)}</div></div>`;
     TB = {};
-    h += sect('Promotores', '👥') + tbl('t-hc', [{ h: 'Usuario', t: 1, v: q => q.usuario, w: 112 }, { h: 'Nombre', t: 1, v: q => q.nombre, w: 210, r: q => `<b>${esc(q.nombre)}</b>` }, { h: 'Estatus', t: 1, v: q => q.v.e, w: 190, r: q => `<div class="est-c">${pillx((ACTI[q.v.e] || '🔵') + ' ' + esc(q.v.e), ACTC[q.v.e] || 'b')}${q.alerta && can('alertas', 'editar') ? `<button class="btn sm primary" onclick="resolverDesdeHC(${q.alerta.id})">Resolver</button>` : ''}${q.v.det ? `<small class="muted">${esc(q.v.det)}</small>` : ''}</div>` },
+    h += sect('Promotores', '👥') + `<div class="tools" data-nocap><select onchange="HCF.est=this.value;vHC()"><option value="">Todos los estatus</option>${ests.map(e => `<option ${HCF.est === e ? 'selected' : ''}>${esc(e)}</option>`).join('')}</select><select onchange="HCF.tipo=this.value;vHC()"><option value="">Todo tipo de ingreso</option>${['Nuevo ingreso', 'Adaptación', 'Reingreso', 'Normal'].map(e => `<option ${HCF.tipo === e ? 'selected' : ''}>${e}</option>`).join('')}</select><select onchange="HCF.ant=this.value;vHC()"><option value="">Toda antigüedad</option>${ANTB.map(b => `<option ${HCF.ant === b[0] ? 'selected' : ''}>${b[0]}</option>`).join('')}</select><select onchange="HCF.emp=this.value;vHC()"><option value="">Toda razón social</option>${emps.map(e => `<option ${HCF.emp === e ? 'selected' : ''}>${esc(e)}</option>`).join('')}</select></div>`;
+    h += tbl('t-hc', [{ h: 'Usuario', t: 1, v: q => q.usuario, w: 120 }, { h: 'Nombre', t: 1, v: q => q.nombre, w: 230, r: q => `<b>${esc(q.nombre)}</b>` },
+      { h: 'Estatus', t: 1, v: q => q.v.e, w: 250, r: q => { const pend = ['Posible baja', 'Descanso / falta / error'].includes(q.v.e) && q.alerta && can('alertas', 'editar'); return `<div class="est-c"><div class="est-r">${pillx((ACTI[q.v.e] || '🔵') + ' ' + esc(q.v.e), ACTC[q.v.e] || 'b')}${pend ? `<button class="btn xs primary" onclick="resolverDesdeHC(${q.alerta.id})">Resolver ›</button>` : ''}</div>${q.v.det ? `<small class="muted">${esc(q.v.det)}</small>` : ''}</div>`; } },
       { h: 'Tipo de ingreso', t: 1, v: q => q.tipo, r: q => pillx((TIPC[q.tipo][1] + ' ' + q.tipo).trim(), TIPC[q.tipo][0]) }, { h: 'Antigüedad', t: 1, v: q => q.ant, r: q => q.ant == null ? '—' : `<b>${esc(q.antL)}</b><br><small class="muted">${Math.floor(q.ant / 7)} sem · ${q.ant} d</small>` },
       { h: 'Fecha de ingreso', v: q => q.fecha_alta, r: q => fdate(q.fecha_alta) }, { h: 'Baja anterior', v: q => q.tipo_ingreso === 'Reingreso' ? q.baja_final : null, r: q => q.tipo_ingreso === 'Reingreso' ? fdate(q.baja_final) : '—' },
       { h: 'Último check', v: q => q.ultimo_check, r: q => fdate(q.ultimo_check) + (q.u.hora_in ? `<br><small class="muted">${hh(q.u.hora_in)} – ${hh(q.u.hora_out)}</small>` : '') }, { h: 'Tipo de check', t: 1, v: q => q.rol, r: q => esc(q.rol || '—') + (q.u.estatus_check ? `<br><small class="muted">${esc((ERRI[q.u.estatus_check] || '') + ' ' + (ERRN[q.u.estatus_check] || q.u.estatus_check))}</small>` : '') },
-      { h: 'Ausencia', t: 1, v: q => q.v.aus ? q.v.aus.motivo : '', r: q => q.v.aus ? `${esc(q.v.aus.motivo)}<br><small class="muted">${fdate(q.v.aus.inicio)} → ${fdate(q.v.aus.regreso)}</small>` : '—' },
-      { h: 'Tienda (último check)', t: 1, v: q => q.t.nombre || '', r: q => esc(q.t.nombre || '—') }, { h: 'Cadena', t: 1, v: q => q.t.cadena }, { h: 'Estado', t: 1, v: q => q.t.estado }, { h: 'Región', t: 1, v: q => q.t.region }, { h: 'Gerente', t: 1, v: q => q.t.gerente }, { h: 'Supervisor', t: 1, v: q => q.t.supervisor }, { h: 'RR.HH.', t: 1, v: q => q.t.rrhh }, { h: 'Empresa', t: 1, v: q => q.empresa }],
-      vis, { fix: 3, search: 1, csv: 1, png: 1, file: 'hc_promotores', titulo: 'HC · promotores', sort: 2, dir: 1, maxh: '72vh', lim: 600 });
+      { h: 'Tienda (último check)', t: 1, v: q => q.t.nombre || '', r: q => esc(q.t.nombre || '—') }, { h: 'Cadena', t: 1, v: q => q.t.cadena }, { h: 'Estado', t: 1, v: q => q.t.estado }, { h: 'Región', t: 1, v: q => q.t.region }, { h: 'Gerente', t: 1, v: q => q.t.gerente }, { h: 'Supervisor', t: 1, v: q => q.t.supervisor }, { h: 'RR.HH.', t: 1, v: q => q.t.rrhh }, { h: 'Razón social', t: 1, v: q => q.empresa }],
+      tabla, { fix: 3, search: 1, csv: 1, png: 1, file: 'hc_promotores', titulo: 'HC · promotores', sort: 2, dir: 1, maxh: '72vh', lim: 600 });
     $('content').innerHTML = h; drawAll();
   });
 }
@@ -603,11 +653,12 @@ function filaAlerta(a) {
 /* ---------- ausencias vigentes ---------- */
 function vVigentes() {
   const todos = S.vigentes.map(v => ({ ...v, faltan: diffD(v.regreso, HOY), t: tienda(v.idpdv) || {} }));
-  const rows = todos.filter(v => okT(v.t.nombre ? v.t : null)).sort((a, b) => a.faltan - b.faltan);
+  const rows = todos.filter(v => okT(v.t.nombre ? v.t : null) && (!S.f.mot || v.motivo === S.f.mot)).sort((a, b) => a.faltan - b.faltan);
   const porMot = {}; rows.forEach(r => porMot[r.motivo] = (porMot[r.motivo] || 0) + 1);
   const MI = { 'Vacaciones': '🏖️', 'Incapacidad (IMSS)': '🏥', 'Permiso especial': '📝', 'Tema médico (particular)': '🩺', 'No localizado': '❓' };
   let h = cab('Ausencias vigentes', 'Promotores con ausencia registrada que sigue vigente hoy, y cuándo regresan.', 'mochila') + barraFiltros('vVigentes', todos.map(v => v.t).filter(t => t.nombre), ['zona_rrhh', 'rrhh', 'supervisor', 'region', 'cadena']);
   h += `<div class="kpis"><div class="kpi"><div class="l">🩺 Vigentes</div><div class="v">${fmt(rows.length)}</div><div class="s">hoy</div></div>${Object.entries(porMot).map(([m, c]) => `<div class="kpi"><div class="l">${MI[m] || ''} ${esc(m)}</div><div class="v">${c}</div></div>`).join('')}<div class="kpi"><div class="l">⏰ Regresan en ≤ 3 días</div><div class="v" style="color:var(--orange-n)">${rows.filter(r => r.faltan <= 3).length}</div></div></div>`;
+  h += `<div class="tools" data-nocap><span>Motivo:</span><select onchange="S.f.mot=this.value;vVigentes()"><option value="">Todos</option>${[...new Set(todos.map(v => v.motivo))].sort().map(m => `<option ${S.f.mot === m ? 'selected' : ''}>${esc(m)}</option>`).join('')}</select></div>`;
   TB = {};
   h += tbl('t-vig', [{ h: 'Usuario', t: 1, v: r => r.usuario, w: 112 }, { h: 'Promotor', t: 1, v: r => r.nombre, w: 210, r: r => `<b>${esc(r.nombre)}</b>` }, { h: 'Motivo', t: 1, v: r => r.motivo, r: r => `<span class="pill b">${MI[r.motivo] || ''} ${esc(r.motivo)}</span>` }, { h: 'Inicio', v: r => r.inicio, r: r => fdate(r.inicio) }, { h: 'Días', v: r => r.dias }, { h: 'Regresa', v: r => r.regreso, r: r => fdate(r.regreso) },
     { h: 'Faltan', v: r => r.faltan, r: r => `<span class="pill ${r.faltan <= 0 ? 'r' : r.faltan <= 3 ? 'a' : 'x'}">${r.faltan <= 0 ? '⏰ hoy' : r.faltan + ' d'}</span>` }, { h: 'Tienda', t: 1, v: r => r.t.nombre || '' }, { h: 'Estado', t: 1, v: r => r.t.estado }, { h: 'Supervisor', t: 1, v: r => r.t.supervisor }, { h: 'Gerente', t: 1, v: r => r.t.gerente }, { h: 'Gerencia RR.HH.', t: 1, v: r => r.t.zona_rrhh }, { h: 'RR.HH.', t: 1, v: r => r.t.rrhh }],
@@ -901,15 +952,7 @@ function modalReagendar(id) {
 const CADS = ['Coppel', 'Elektra', 'Suburbia', 'Cimaco'];
 function esquemaHtml(rows, titulo) {
   const cad = [...CADS, ...new Set(rows.map(c => (tienda(c.idpdv) || {}).cadena).filter(x => x && !CADS.includes(x)))];
-  const reg = new Map(); rows.forEach(c => { const t = tienda(c.idpdv) || {}; const r = t.region || 'Sin región', g = t.gerente || 'Sin gerente'; if (!reg.has(r)) reg.set(r, new Map()); const m = reg.get(r); if (!m.has(g)) m.set(g, {}); const o = m.get(g); o[t.cadena || '—'] = (o[t.cadena || '—'] || 0) + 1; });
-  const sum = o => Object.values(o).reduce((a, b) => a + b, 0); let body = '';
-  const tot = {}; [...reg].sort((a, b) => a[0].localeCompare(b[0])).forEach(([r, gs]) => {
-    const ro = {}; gs.forEach(o => Object.entries(o).forEach(([c, v]) => ro[c] = (ro[c] || 0) + v));
-    body += `<tr class="rg"><td>⊟ ${esc(r)}</td>${cad.map(c => `<td>${ro[c] || ''}</td>`).join('')}<td><b>${sum(ro)}</b></td></tr>`;
-    [...gs].sort((a, b) => sum(b[1]) - sum(a[1])).forEach(([g, o]) => { body += `<tr><td class="gg">${esc(g)}</td>${cad.map(c => `<td>${o[c] || ''}</td>`).join('')}<td>${sum(o)}</td></tr>`; });
-    Object.entries(ro).forEach(([c, v]) => tot[c] = (tot[c] || 0) + v);
-  });
-  return `<div class="esq"><table><thead><tr><th class="e1">${esc(titulo)}<small>REGIÓN / GERENTE</small></th>${cad.map(c => `<th>${esc(c)}</th>`).join('')}<th>Total</th></tr></thead><tbody>${body || `<tr><td colspan="${cad.length + 2}" class="empty-in">Sin candidatos</td></tr>`}<tr class="tt"><td>Total general</td>${cad.map(c => `<td>${tot[c] || ''}</td>`).join('')}<td>${sum(tot)}</td></tr></tbody></table></div>`;
+  return `<div class="esq">` + arbol(rows, [...cad.map(c => ({ h: c, f: a => a.filter(x => (tienda(x.idpdv) || {}).cadena === c).length })), { h: 'Total', f: a => a.length, cero: true }], { titulo: titulo + ' · REGIÓN / GERENTE / SUPERVISOR / TIENDA', cw: 84 }) + '</div>';
 }
 function modalOperaciones() {
   const d = IG.opd || addD(HOY, 1);
@@ -932,7 +975,7 @@ function tResumen() {
   const conv = (keyf, namef, min) => { const g = new Map(); cerr.forEach(x => { const k = keyf(x); const o = g.get(k) || { n: 0, i: 0 }; o.n++; if (x.estatus === 'Ingresó') o.i++; g.set(k, o); }); return [...g].filter(([, o]) => o.n >= min).map(([k, o]) => ({ n: namef(k), v: o.i / o.n * 100, s: `${o.i}/${o.n}`, c: o.i / o.n >= 0.75 ? C.gr : o.i / o.n >= 0.6 ? C.am : C.rd })).sort((a, b) => b.v - a.v).slice(0, 10); };
   let h = barraFiltros('tResumen', IG.lista.map(c => tienda(c.idpdv)).filter(Boolean), ['region', 'gerente', 'supervisor', 'zona_rrhh', 'rrhh', 'cadena']);
   h += `<div class="tools"><span>Periodo:</span><select onchange="IG.per=this.value;IG.dd=null;IG.dh=null;tResumen()">${[['30', 'Últimos 30 días'], ['60', 'Últimos 60 días'], ['90', 'Últimos 90 días'], ['all', 'Todo lo cargado']].map(([v, t]) => `<option value="${v}" ${IG.per === v && !IG.dd ? 'selected' : ''}>${t}</option>`).join('')}</select><span>o fechas:</span><input type="date" value="${desde === '0000' ? '' : desde}" onchange="IG.dd=this.value;tResumen()"> <input type="date" value="${hasta}" onchange="IG.dh=this.value;tResumen()"><span class="muted">${fmt(cerr.length)} candidatos con resultado</span></div>`;
-  h += `<div class="kpis"><div class="kpi"><div class="l">🧑‍💼 Programados</div><div class="v">${fmt(cerr.length)}</div></div><div class="kpi"><div class="l">🙌 Ingresaron</div><div class="v" style="color:var(--green)">${fmt(ing.length)}</div></div><div class="kpi"><div class="l">📈 Conversión</div><div class="v">${cerr.length ? (ing.length / cerr.length * 100).toFixed(1) + '%' : '—'}</div></div><div class="kpi"><div class="l">🚫 No llegó</div><div class="v" style="color:var(--red)">${cnt('No llegó')}</div></div><div class="kpi"><div class="l">✖️ Declinó</div><div class="v" style="color:var(--red)">${cnt('Declinó')}</div></div><div class="kpi"><div class="l">📵 No contesta</div><div class="v" style="color:var(--amber)">${cnt('No contesta')}</div></div></div>`;
+  h += `<div class="kpis"><div class="kpi"><div class="l">🧑‍💼 Programados</div><div class="v">${fmt(cerr.length)}</div></div><div class="kpi"><div class="l">🙌 Ingresaron</div><div class="v" style="color:var(--green)">${fmt(ing.length)}</div></div><div class="kpi"><div class="l">📈 Conversión</div><div class="v">${cerr.length ? (ing.length / cerr.length * 100).toFixed(2) + '%' : '—'}</div></div><div class="kpi"><div class="l">🚫 No llegó</div><div class="v" style="color:var(--red)">${cnt('No llegó')}</div></div><div class="kpi"><div class="l">✖️ Declinó</div><div class="v" style="color:var(--red)">${cnt('Declinó')}</div></div><div class="kpi"><div class="l">📵 No contesta</div><div class="v" style="color:var(--amber)">${cnt('No contesta')}</div></div></div>`;
   const res = ['Ingresó', 'No llegó', 'Declinó', 'No contesta', 'Reagenda'].map((e, i) => ({ n: e, v: cnt(e), c: [C.gr, C.rd, C.am, C.dk, C.gy][i] }));
   h += `<div class="grid g3"><div class="card"><h3>🎯 Resultado de los candidatos</h3>${donut(res, { sub: 'candidatos' })}</div><div class="card"><h3>🏆 Ingresos por reclutador</h3>${pie(ing, x => x.reclutador_id, nombreRecl, { sub: 'ingresos' })}</div><div class="card"><h3>📣 Ingresos por medio</h3>${pie(ing, x => x.fuente_id, nombreFuente, { sub: 'ingresos' })}</div></div>`;
   h += `<div class="grid g3"><div class="card"><h3>✖️ Declinados por medio</h3>${pie(cerr.filter(x => x.estatus === 'Declinó'), x => x.fuente_id, nombreFuente, { sub: 'declinados' })}</div><div class="card"><h3>🚫 No llegaron por reclutador</h3>${pie(cerr.filter(x => x.estatus === 'No llegó'), x => x.reclutador_id, nombreRecl, { sub: 'no llegaron' })}</div><div class="card"><h3>📵 No contestan por reclutador</h3>${pie(cerr.filter(x => x.estatus === 'No contesta'), x => x.reclutador_id, nombreRecl, { sub: 'sin respuesta' })}</div></div>`;
@@ -961,11 +1004,6 @@ function tResumen() {
 /* ====================================================================== INGRESOS Y BAJAS ====================================================================== */
 const MVX = { ver: 'region', dia: null };
 const DIMV = [['region', 'Región'], ['gerente', 'Gerente / Líder'], ['supervisor', 'Supervisor'], ['zona_rrhh', 'Gerencia RR.HH.'], ['rrhh', 'RR.HH.'], ['cadena', 'Cadena'], ['estado', 'Estado']];
-function hcPromX(r, pred) {
-  const sa = R.meta.semanas_anio, xs = R.T.filter(x => okT(x.t) && pred(x.t)), tot = [];
-  sa.forEach((s, i) => { const fin = addD(s.ini, 6); if (fin < r.desde || s.ini > r.hasta) return; tot.push(xs.reduce((a, x) => a + (x.hc[i] || 0), 0)); });
-  return tot.length ? tot.reduce((a, b) => a + b, 0) / tot.length : 0;
-}
 const enR = (arr, d, h) => arr.filter(x => x.f >= d && x.f <= h && okI(x.idpdv));
 async function vMovs() {
   await conReporte('Ingresos y bajas', 'saltando', async () => {
@@ -977,8 +1015,8 @@ async function vMovs() {
     let h = cab('Ingresos y bajas', 'Ingresos (candidatos que ingresaron) y bajas registradas, con rotación, comparativos por semana y por cadena. Sirve de base para los cierres diarios y semanales.', 'saltando') + barraFiltros('vMovs') + barraPeriodo('vMovs');
     h += `<div class="kpis kp-hero">${kp('Ingresos', fmt(ing.length), `${dl(ing.length, ingP, 0).replace('pts', '')}`.replace('vs ant.', 'vs periodo anterior (' + ingP + ')'), C.gr, null, '🙌')}${kp('Bajas', fmt(baj.length), `${dl(baj.length, bajP, 0).replace('pts', '').replace('vs ant.', 'vs periodo anterior (' + bajP + ')')}`, C.rd, null, '📤')}${kp('Neto', (ing.length - baj.length >= 0 ? '+' : '') + (ing.length - baj.length), 'ingresos − bajas', ing.length - baj.length >= 0 ? C.gr : C.rd, null, '⚖️')}${kp('Rotación del periodo', hc ? f1(baj.length / hc * 100) + '%' : '—', `${baj.length} bajas ÷ ${fmt(hc)} HC promedio`, C.am, null, '🔄')}</div>`;
     const rotS = semanas.map(s => { const hcS = hcPromX({ desde: s.d, hasta: s.h }, () => true); return hcS ? enR(MV.baj, s.d, s.h).length / hcS * 100 : null; });
-    h += `<div class="grid g2"><div class="card"><h3>📊 Ingresos vs bajas por ${dias <= 10 ? 'día' : 'semana'}</h3>${legend([['Ingresos', C.gr], ['Bajas', C.rd], ['Neto', C.dk]])}${chart(semanas.map(s => s.l), [{ n: 'Ingresos', c: C.gr, v: si }, { n: 'Bajas', c: C.rd, v: sb_ }], { bars: 1, vals: 1, h: 250, lines: [{ n: 'Neto', c: C.dk, v: si.map((v, i) => v - sb_[i]) }] })}</div>
-      <div class="card"><h3>🔄 Rotación ${dias <= 10 ? 'diaria' : 'semanal'}</h3><p class="note">Bajas ÷ promotores con check (HC promedio).</p>${chart(semanas.map(s => s.l), [{ n: 'Rotación %', c: C.am, v: rotS }], { pct: 1, h: 250, vals: 1 })}</div></div>`;
+    h += `<div class="grid g2"><div class="card"><h3>📊 Ingresos, bajas y rotación por ${dias <= 10 ? 'día' : 'semana'}</h3><p class="note">Barras: cantidad. Línea naranja: % de rotación (eje derecho) con su tendencia punteada.</p>${legend([['Ingresos', C.gr], ['Bajas', C.rd], ['Rotación %', C.am], ['Tendencia', C.od]])}${chart(semanas.map(s => s.l), [{ n: 'Ingresos', c: C.gr, v: si }, { n: 'Bajas', c: C.rd, v: sb_ }], { bars: 1, vals: 1, h: 300, ticks: 16, lines2: [{ n: 'Rotación %', c: C.am, v: rotS, trend: 1 }], y2: { pct: 1 } })}</div>
+      <div class="card"><h3>🔄 Rotación ${dias <= 10 ? 'diaria' : 'semanal'} y tendencia</h3><p class="note">Bajas ÷ promotores con check (HC promedio). Si la línea punteada baja, la rotación va mejorando.</p>${chart(semanas.map(s => s.l), [{ n: 'Rotación %', c: C.am, v: rotS }], { pct: 1, h: 300, vals: 1, ticks: 16, lines: [] })}</div></div>`;
     const cads = [...new Set(R.T.filter(x => okT(x.t)).map(x => x.t.cadena).filter(Boolean))];
     const cr = cads.map(c => { const i = ing.filter(x => (tienda(x.idpdv) || {}).cadena === c).length, b = baj.filter(x => (tienda(x.idpdv) || {}).cadena === c).length, hcC = hcPromX(r, t => t.cadena === c); return { c, i, b, rot: hcC ? b / hcC * 100 : null }; }).sort((a, b) => b.i + b.b - a.i - a.b);
     const mot = {}; baj.forEach(x => mot[x.mot] = (mot[x.mot] || 0) + 1); const PAL = [C.or, C.bl, C.rd, C.pu, C.te, C.am, C.gr, C.gy];
@@ -1002,9 +1040,9 @@ async function vMovs() {
 }
 function semanaCierre(d) { const W = ventana(); let i = W.findIndex(w => addD(w.ini, 6) >= d && w.ini <= d); if (i < 0) i = W.length - 1; const s = rangoSemanaDe(i); return { w: W[i].w, ...s }; }
 function cierreHtml(titulo, ing, baj) {
-  const reg = new Map(); [...ing.map(x => ['i', x]), ...baj.map(x => ['b', x])].forEach(([k, x]) => { const rg = (tienda(x.idpdv) || {}).region || 'Sin región'; const o = reg.get(rg) || { i: 0, b: 0 }; o[k]++; reg.set(rg, o); });
-  return `<div class="cierre"><div class="cierre-t">${esc(titulo)}</div><div class="cierre-k"><div><b class="cell-green">${ing.length}</b><span>🙌 Ingresos</span></div><div><b class="cell-red">${baj.length}</b><span>📤 Bajas</span></div><div><b>${ing.length - baj.length >= 0 ? '+' : ''}${ing.length - baj.length}</b><span>⚖️ Neto</span></div></div>
-    <table><thead><tr><th>Región</th><th>Ingresos</th><th>Bajas</th><th>Neto</th></tr></thead><tbody>${[...reg].sort((a, b) => b[1].i + b[1].b - a[1].i - a[1].b).map(([k, o]) => `<tr><td>${esc(k)}</td><td>${o.i}</td><td>${o.b}</td><td>${o.i - o.b > 0 ? '+' : ''}${o.i - o.b}</td></tr>`).join('') || '<tr><td colspan="4" class="empty-in">Sin movimientos</td></tr>'}</tbody></table></div>`;
+  const items = [...ing.map(x => ({ idpdv: x.idpdv, tipo: 'i' })), ...baj.map(x => ({ idpdv: x.idpdv, tipo: 'b' }))];
+  return `<div class="cierre"><div class="cierre-t">${esc(titulo)}</div><div class="cierre-k"><div><b class="cell-green">${ing.length}</b><span>🙌 Ingresos</span></div><div><b class="cell-red">${baj.length}</b><span>📤 Bajas</span></div><div><b>${ing.length - baj.length >= 0 ? '+' : ''}${ing.length - baj.length}</b><span>⚖️ Neto</span></div></div>` +
+    arbol(items, [{ h: 'Ingresos', f: a => a.filter(x => x.tipo === 'i').length, cls: 'g' }, { h: 'Bajas', f: a => a.filter(x => x.tipo === 'b').length, cls: 'r' }, { h: 'Neto', f: a => a.filter(x => x.tipo === 'i').length - a.filter(x => x.tipo === 'b').length, cero: true, fmt: v => (v > 0 ? '+' : '') + v }], { titulo: 'REGIÓN / GERENTE / SUPERVISOR / TIENDA', cw: 78 }) + '</div>';
 }
 
 /* >>> 08_demo_reportes.js */
@@ -1030,7 +1068,7 @@ function cierreHtml(titulo, ing, baj) {
       let dias = ''; for (let i = 0; i < nd; i++) dias += rnd() < 0.8 ? 'C' : '0'; dias = dias.slice(0, nd - nCd % 7) ;
       const tail = cd.match(/0+$/); const ra0 = tail ? tail[0].length : 0;
       const pen = meses.map((m, k) => { const act = k === meses.length - 1; const mx = act ? ra0 : ri(0, 6); const e = mx >= 5 ? 2 : mx >= 3 ? 1 : 0;
-        return { m, e, pa: mx >= 3 ? `${ri(1, 20)} al ${ri(21, 28)} ${MESN[+m.slice(5) - 1]}.` : null, dr: mx >= 3 ? mx : 0, mx, pm: mx >= 2 ? `${ri(1, 10)} al ${ri(11, 20)} ${MESN[+m.slice(5) - 1]}.` : null, ds: ri(mx, mx + 5), ul: addD(HOY, -ra0 - 1), uf: act ? addD(HOY, -ra0 - 1) : null, ue: act ? (rnd() < 0.85 ? 'Cumple Original' : 'Abierto') : null, ra: act ? ra0 : 0, hoy: act ? (rnd() < 0.25 ? 'A' : '0') : null, rs: mx >= 2 ? [[mx, addD(HOY, -mx), addD(HOY, -1)]] : [], act }; });
+        return { m, e, pa: mx >= 3 ? `${ri(1, 20)} al ${ri(21, 28)} ${MESN[+m.slice(5) - 1]}.` : null, dr: mx >= 3 ? mx : 0, mx, pm: mx >= 2 ? `${ri(1, 10)} al ${ri(11, 20)} ${MESN[+m.slice(5) - 1]}.` : null, ds: ri(mx, mx + 5), ul: addD(HOY, -ra0 - 1), uf: act ? addD(HOY, -ra0 - 1) : null, ue: act ? (rnd() < 0.85 ? 'Cumple Original' : 'Abierto') : null, ra: act ? ra0 : 0, hoy: act ? ['A', 'E', '0', '0'][ri(0, 3)] : null, rs: mx >= 2 ? [[mx, addD(HOY, -mx), addD(HOY, -1)]] : [], act }; });
       return { idpdv: t.idpdv, semanas: sem, chk: { s: chk, cd }, dias, hc_sem: sa.map(() => ri(1, 3)), pen };
     });
     const nom = ['Ana Solís', 'Luis Ortega', 'María Cruz', 'José Reyes', 'Daniela Ruiz', 'Carlos Mora', 'Paola Estrada', 'Jorge Lara', 'Valeria Núñez', 'Diego Gil', 'Karla Vega', 'Miguel Soto', 'Fátima Luna', 'Ricardo Salas', 'Brenda Morales'];
