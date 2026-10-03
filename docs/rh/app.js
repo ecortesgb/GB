@@ -236,9 +236,9 @@ async function pngDe(el, titulo, sub) {
   const box = document.createElement('div'); box.className = 'cap-box'; box.style.width = 'max-content'; box.style.minWidth = '760px';
   box.innerHTML = `<div class="cap-head"><img src="${img('logo_gb')}" alt=""><div><b>${esc(titulo)}</b><small>${esc(sub || '')}</small></div><span>Grupo Benber · RH · ${fdate(HOY)}</span></div>`;
   const clon = el.cloneNode(true);
-  clon.querySelectorAll('.tw').forEach(t => { t.style.maxHeight = 'none'; t.style.overflow = 'visible'; t.style.width = 'max-content'; t.style.maxWidth = 'none'; });
+  [clon, ...clon.querySelectorAll('.tw')].filter(t => t.classList && t.classList.contains('tw')).forEach(t => { t.style.maxHeight = 'none'; t.style.overflow = 'visible'; t.style.width = 'max-content'; t.style.maxWidth = 'none'; });
   clon.querySelectorAll('[data-nocap]').forEach(x => x.remove()); clon.querySelectorAll('details').forEach(d => d.setAttribute('open', '')); clon.querySelectorAll('.xlw').forEach(t => { t.style.overflow = 'visible'; t.style.maxHeight = 'none'; });
-  clon.querySelectorAll('.fx').forEach(x => { x.style.position = 'static'; x.style.left = 'auto'; }); clon.querySelectorAll('.cut').forEach(x => { x.style.overflow = 'visible'; x.style.textOverflow = 'clip'; });
+  clon.querySelectorAll('.fx').forEach(x => { x.style.position = 'static'; x.style.left = 'auto'; x.style.maxWidth = 'none'; }); clon.querySelectorAll('.cut').forEach(x => { x.style.overflow = 'visible'; x.style.textOverflow = 'clip'; x.style.maxWidth = 'none'; });
   clon.querySelectorAll('thead th').forEach(x => { x.style.position = 'static'; });
   box.appendChild(clon); document.body.appendChild(box);
   try { await (document.fonts && document.fonts.ready); await new Promise(r => setTimeout(r, 60)); const w = Math.ceil(Math.max(box.getBoundingClientRect().width, box.scrollWidth, 760)), hh = Math.ceil(Math.max(box.getBoundingClientRect().height, box.scrollHeight)), sc = Math.min(2, 16000 / Math.max(w, hh)); return await html2canvas(box, { scale: sc, backgroundColor: '#ffffff', useCORS: true, width: w, height: hh, windowWidth: w + 80, windowHeight: hh + 80, scrollX: 0, scrollY: 0 }); } finally { box.remove(); }
