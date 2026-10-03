@@ -123,6 +123,10 @@ const legend = items => `<div class="leg">${items.map(([n, c]) => `<span><b styl
 const dl = (a, b, fx = 2) => a == null || b == null ? '' : `<span class="${a - b >= 0 ? 'up' : 'dn'}">${a - b >= 0 ? '▲' : '▼'} ${Math.abs(a - b).toFixed(fx)} pts vs ant.</span>`;
 
 /* ---------- gráficos SVG ---------- */
+function niceTop(v) { // tope del eje tal que sus 4 divisiones sean números redondos (40 -> 0,10,20,30,40)
+  if (v <= 0) return 1; const s = v / 4, p = Math.pow(10, Math.floor(Math.log10(s))), m = s / p;
+  return (m <= 1 ? 1 : m <= 2 ? 2 : (m <= 2.5 && p >= 10) ? 2.5 : m <= 5 ? 5 : 10) * p * 4;
+}
 function niceMax(v) { if (v <= 0) return 1; const p = Math.pow(10, Math.floor(Math.log10(v))), m = v / p; return (m <= 1 ? 1 : m <= 2 ? 2 : m <= 5 ? 5 : 10) * p; }
 function regresion(vals) { // recta de tendencia (mínimos cuadrados) sobre los puntos con dato
   const p = vals.map((v, i) => [i, v]).filter(q => q[1] != null); if (p.length < 2) return null;
@@ -134,8 +138,8 @@ function chart(labels, series, o = {}) {
   const l2 = o.lines2 || [], band = !!(o.band && l2.length), W = o.w || 600, H = o.h || 290, L = 46, R = l2.length ? 54 : 30, T = band ? 36 : 26, B = 28, pw = W - L - R, ph = H - T - B, n = labels.length;
   const phB = band ? ph * 0.64 : ph, phL = band ? ph * 0.27 : ph;
   const all = [...series.flatMap(s => s.v), ...(o.lines || []).flatMap(s => s.v)].filter(x => x != null);
-  let mx = o.max != null ? o.max : niceMax(Math.max(1e-9, ...all));
-  if (o.stack) { const tot = labels.map((_, i) => series.reduce((a, s) => a + (s.v[i] || 0), 0)); mx = o.max != null ? o.max : niceMax(Math.max(1e-9, ...tot, ...(o.lines || []).flatMap(s => s.v).filter(x => x != null))); }
+  let mx = o.max != null ? o.max : niceTop(Math.max(1e-9, ...all));
+  if (o.stack) { const tot = labels.map((_, i) => series.reduce((a, s) => a + (s.v[i] || 0), 0)); mx = o.max != null ? o.max : niceTop(Math.max(1e-9, ...tot, ...(o.lines || []).flatMap(s => s.v).filter(x => x != null))); }
   const y = v => T + ph - (v / mx) * phB, bw = pw / Math.max(1, n), xc = i => L + i * bw + bw / 2, xs = i => L + (n <= 1 ? pw / 2 : i * pw / (n - 1)), X = i => o.bars ? xc(i) : xs(i);
   const v2 = l2.flatMap(s => s.v).filter(x => x != null), fT = l2.map(s => s.trend ? regresion(s.v) : null);
   const vt = [...v2]; l2.forEach((s, k) => { if (fT[k]) { vt.push(fT[k](0), fT[k](n - 1)); } });
@@ -264,6 +268,7 @@ const subFiltros = () => { const f = Object.entries(FL).filter(([, v]) => v).map
 
 /* ---------- filtros de estructura (compartidos por todas las secciones) ---------- */
 const FL = { region: '', gerente: '', supervisor: '', zona_rrhh: '', rrhh: '', cadena: '' };
+let FB_OPEN = false; // panel de filtros abierto en celular (sobrevive a los re-render de cada vista)
 const FCAMPOS = [['region', 'Región'], ['gerente', 'Gerente / Líder'], ['supervisor', 'Supervisor'], ['zona_rrhh', 'Gerencia RR.HH.'], ['rrhh', 'RR.HH.'], ['cadena', 'Cadena']];
 const okT = t => t ? Object.entries(FL).every(([k, v]) => !v || t[k] === v) : !Object.values(FL).some(Boolean);
 const okI = id => okT(tienda(id));
@@ -271,9 +276,11 @@ function barraFiltros(fn, base, campos) {
   base = base || Object.values(S.cat.tiendas); campos = campos || FCAMPOS.map(c => c[0]);
   const sel = FCAMPOS.filter(c => campos.includes(c[0])).map(([k, l]) => {
     const ops = [...new Set(base.filter(t => Object.entries(FL).every(([kk, v]) => kk === k || !v || t[kk] === v)).map(t => t[k]).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es'));
-    return `<div class="fb-field ${FL[k] ? 'on' : ''}"><label>${l}</label><select onchange="FL['${k}']=this.value;${fn}()"><option value="">Todos</option>${ops.map(o => `<option ${FL[k] === o ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select></div>`;
+    return `<div class="fb-field ${FL[k] ? 'on' : ''}"><label>${l}</label><select aria-label="${esc(l)}" onchange="FL['${k}']=this.value;${fn}()"><option value="">Todos</option>${ops.map(o => `<option ${FL[k] === o ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select></div>`;
   }).join('');
-  return `<div class="fbar" data-nocap>${sel}<button class="btn sm" onclick="Object.keys(FL).forEach(k=>FL[k]='');${fn}()">✕ Quitar filtros</button></div>`;
+  const nAct = FCAMPOS.filter(c => campos.includes(c[0]) && FL[c[0]]).length;
+  const tg = `<button type="button" class="btn sm fb-toggle" data-nocap aria-expanded="${FB_OPEN}" onclick="FB_OPEN=!FB_OPEN;this.setAttribute('aria-expanded',FB_OPEN);this.nextElementSibling.classList.toggle('open',FB_OPEN);this.querySelector('b').textContent=FB_OPEN?'Ocultar filtros':'Filtros'">🔎 <b>${FB_OPEN ? 'Ocultar filtros' : 'Filtros'}</b>${nAct ? `<span class="fb-n">${nAct}</span>` : ''}</button>`;
+  return `${tg}<div class="fbar${FB_OPEN ? ' open' : ''}" data-nocap>${sel}<button class="btn sm" onclick="Object.keys(FL).forEach(k=>FL[k]='');${fn}()">✕ Quitar filtros</button></div>`;
 }
 
 /* ---------- periodo: semana · mes · rango (como Avance GB) ---------- */
@@ -423,7 +430,7 @@ async function vResumen() {
     let h = cab('Resumen', 'Cobertura de PDV, asistencia de promotores y checks contra cuota (misma lógica de Avance GB), más rotación del periodo. Todo responde a los filtros de estructura y al periodo elegido.', 'pulgares') + barraFiltros('vResumen') + barraPeriodo('vResumen');
     h += `<div class="kpis kp-hero">${kp('% Cobertura PDV', cur.pctP == null ? '—' : f1(cur.pctP) + '%', `${fmt1(cur.pP)} tiendas/día vs ${fmt1(cur.dP)} dimensionadas<br>${dl(cur.pctP, prev && prev.pctP)}`, colorPct(cur.pctP), null, '🏬')}
       ${kp('% Asistencia Promotor', cur.pctM == null ? '—' : f1(cur.pctM) + '%', `${fmt1(cur.pM)} promotores/día vs ${fmt1(cur.dM)} dimensionados<br>${dl(cur.pctM, prev && prev.pctM)}`, colorPct(cur.pctM), null, '🧍')}
-      ${kp('% Checks vs cuota', cur.pctC == null ? '—' : f1(cur.pctC) + '%', `${fmt(cur.chk)} checks vs cuota ${fmt(cur.cuota)} (6 por posición por semana)<br>${dl(cur.pctC, prev && prev.pctC)}`, C.bl, null, '✅')}
+      ${kp('% Checks vs cuota', cur.pctC == null ? '—' : f1(cur.pctC) + '%', `${fmt(cur.chk)} checks vs cuota ${fmt(cur.cuota)} (6 por posición por semana)<br>${dl(cur.pctC, prev && prev.pctC)}`, colorPct(cur.pctC), null, '✅')}
       ${kp('Rotación del periodo', rot.rot == null ? '—' : f1(rot.rot) + '%', `${rot.baj} bajas ÷ ${fmt(rot.hc)} HC promedio<br>${rot.ing} ingresos · neto ${rot.ing - rot.baj >= 0 ? '+' : ''}${rot.ing - rot.baj}`, C.am, null, '🔄')}</div>`;
     h += `<div class="grid g3">${embudo('🏬 Cobertura PDV', [{ n: "Total PDV's", v: cur.n, c: C.bl }, { n: 'Dimensionamiento', v: cur.dP, c: '#3D6FB6' }, { n: 'Cubiertos (prom. diario)', v: cur.pP, c: C.gr }, { n: 'Descubiertos', v: Math.max(0, -cur.difP), c: C.rd }])}
       ${embudo('🧍 Asistencia Promotor', [{ n: 'Posiciones autorizadas', v: cur.posc, c: C.bl }, { n: 'Dimensionamiento', v: cur.dM, c: '#3D6FB6' }, { n: 'Asistieron (prom. diario)', v: cur.pM, c: C.gr }, { n: 'Sin asistir', v: Math.max(0, -cur.difM), c: C.rd }])}
