@@ -286,13 +286,15 @@ function barraFiltros(fn, base, campos) {
 /* ---------- periodo: semana · mes · rango (como Avance GB) ---------- */
 const PER = { modo: 'semana', sem: null, mes: null, desde: null, hasta: null };
 function ventana() { return R.meta.ventana; }
-function limites() { const max = R.meta.ultima_fecha || HOY, d = new Date(max.slice(0, 7) + '-01T12:00:00'); d.setMonth(d.getMonth() - 2); const m3 = d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-01'; return { min: R.meta.cd_desde > m3 ? R.meta.cd_desde : m3, max, mes3: m3 }; }
+function limites() { const max = R.meta.hoy || R.meta.ultima_fecha || HOY, d = new Date(max.slice(0, 7) + '-01T12:00:00'); d.setMonth(d.getMonth() - 2); const m3 = d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-01'; return { min: R.meta.cd_desde > m3 ? R.meta.cd_desde : m3, max, mes3: m3 }; }
 function rangoSemanaDe(i) { const w = ventana()[i], L = limites(); const fin = [addD(w.ini, 6), L.max].reduce((a, b) => a < b ? a : b); return { desde: w.ini, hasta: fin }; }
 function perRango() {
   const L = limites(), W = ventana(); let d, h;
   if (PER.modo === 'semana') { if (PER.sem == null) PER.sem = W.length - 1; ({ desde: d, hasta: h } = rangoSemanaDe(PER.sem)); }
   else if (PER.modo === 'mes') { const m = PER.mes || L.max.slice(0, 7); d = m + '-01'; const nx = new Date(m + '-01T12:00:00'); nx.setMonth(nx.getMonth() + 1); nx.setDate(0); h = nx.getFullYear() + '-' + pad(nx.getMonth() + 1) + '-' + pad(nx.getDate()); }
   else if (PER.modo === 'dia') { d = h = PER.desde || L.max; }
+  else if (PER.modo === 'hoy') { d = h = L.max; }
+  else if (PER.modo === 'todo') { d = L.min; h = L.max; }
   else { d = PER.desde || addD(L.max, -6); h = PER.hasta || L.max; }
   if (d < L.min) d = L.min; if (h > L.max) h = L.max; if (h < d) h = d;
   const dias = []; for (let x = d; x <= h; x = addD(x, 1)) dias.push(x);
@@ -305,11 +307,12 @@ function semanasUlt4(r) { // las 4 últimas semanas (lun-dom) contra las que se 
 }
 function meses3() { const L = limites(), out = []; let m = L.max.slice(0, 7); for (let k = 0; k < 3; k++) { out.unshift(m); const x = new Date(m + '-01T12:00:00'); x.setMonth(x.getMonth() - 1); m = x.getFullYear() + '-' + pad(x.getMonth() + 1); } return out; }
 function barraPeriodo(fn, opts = {}) {
-  const W = ventana(), L = limites(), r = perRango(), modos = [['semana', '📅 Semana'], ['mes', '🗓️ Mes'], ['rango', '↔️ Rango'], ...(opts.dia ? [['dia', '☀️ Día']] : [])];
+  const W = ventana(), L = limites(), r = perRango(), modos = [['hoy', '☀️ Hoy'], ['semana', '📅 Semana'], ['mes', '🗓️ Mes'], ['rango', '↔️ Rango'], ['todo', '📊 Todo'], ...(opts.dia ? [['dia', '🗓️ Día']] : [])];
   let ctl = '';
   if (PER.modo === 'semana') ctl = `<select onchange="PER.sem=+this.value;${fn}()">${W.map((w, k) => ({ w, k })).filter(({ w }) => addD(w.ini, 6) >= L.min).map(({ w, k }) => `<option value="${k}" ${k === PER.sem ? 'selected' : ''}>${w.w} · ${fdate(w.ini)}${k === W.length - 1 ? ' (en curso)' : ''}</option>`).join('')}</select>`;
   else if (PER.modo === 'mes') ctl = `<select onchange="PER.mes=this.value;${fn}()">${meses3().map(m => `<option value="${m}" ${(PER.mes || L.max.slice(0, 7)) === m ? 'selected' : ''}>${mlabel(m)}${m === L.max.slice(0, 7) ? ' (en curso)' : ''}</option>`).join('')}</select>`;
   else if (PER.modo === 'dia') ctl = `<input type="date" min="${L.min}" max="${L.max}" value="${r.desde}" onchange="PER.desde=this.value;${fn}()">`;
+  else if (PER.modo === 'hoy' || PER.modo === 'todo') ctl = '';
   else ctl = `<input type="date" min="${L.min}" max="${L.max}" value="${r.desde}" onchange="PER.desde=this.value;${fn}()"> <span>a</span> <input type="date" min="${L.min}" max="${L.max}" value="${r.hasta}" onchange="PER.hasta=this.value;${fn}()">`;
   return `<div class="pbar" data-nocap><div class="seg">${modos.map(([k, n]) => `<button class="${PER.modo === k ? 'on' : ''}" onclick="PER.modo='${k}';${k === 'dia' ? "PER.desde=PER.desde||'" + L.max + "';" : ''}${fn}()">${n}</button>`).join('')}</div>${ctl}<span class="muted">${r.dias.length} día${r.dias.length > 1 ? 's' : ''} · ${fdate(r.desde)} al ${fdate(r.hasta)} (últimos 3 meses disponibles)</span></div>`;
 }
