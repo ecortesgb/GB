@@ -1055,7 +1055,7 @@ async function vMovs() {
       rows, { fix: 1, csv: 1, png: 1, file: 'ingresos_bajas_estructura', titulo: 'Ingresos y bajas por ' + DIMV.find(x => x[0] === MVX.ver)[1], sort: 1, dir: -1, maxh: '60vh' });
     // cierre: una sola tabla expandible (región > gerente > supervisor > tienda) con una columna por cadena, del periodo elegido arriba
     const met = MVX.met || 'i', METN = { i: '🙌 Ingresos', b: '📤 Bajas', n: '⚖️ Neto' };
-    const items = [...ing.map(x => ({ idpdv: x.idpdv, tipo: 'i' })), ...baj.map(x => ({ idpdv: x.idpdv, tipo: 'b' }))];
+    const items = [...(met === 'b' ? [] : ing).map(x => ({ idpdv: x.idpdv, tipo: 'i' })), ...(met === 'i' ? [] : baj).map(x => ({ idpdv: x.idpdv, tipo: 'b' }))];
     const cadX = [...CADS, ...new Set(items.map(x => (tienda(x.idpdv) || {}).cadena).filter(c => c && !CADS.includes(c)))];
     const cnt = (a, c, t) => a.filter(x => x.tipo === t && (!c || (tienda(x.idpdv) || {}).cadena === c)).length;
     const fm = c => a => met === 'n' ? cnt(a, c, 'i') - cnt(a, c, 'b') : cnt(a, c, met);
